@@ -858,7 +858,7 @@
 
   function renderFlatFieldTable(centers, fields){
     const header = `<tr><th></th>${centers.map(c => `<th>${escapeHtml(c.name)}</th>`).join('')}</tr>`;
-    const rows = fields.map(f => `<tr><td>${escapeHtml(f.label)}</td>${centers.map(c => `<td>${c[f.key] ? escapeHtml(c[f.key]) : '<span class="summary-empty">Not stated</span>'}</td>`).join('')}</tr>`).join('');
+    const rows = fields.map(f => `<tr><td>${escapeHtml(f.label)}</td>${centers.map(c => `<td style="white-space: pre-wrap;">${c[f.key] ? escapeHtml(c[f.key]) : '<span class="summary-empty">Not stated</span>'}</td>`).join('')}</tr>`).join('');
     return `<table class="summary-table"><thead>${header}</thead><tbody>${rows}</tbody></table>`;
   }
 
@@ -895,7 +895,7 @@
       return '<p class="summary-empty" style="padding:6px 0;">No details yet — add some in the centre card above.</p>';
     }
     const header = `<tr><th></th>${centers.map(c => `<th>${escapeHtml(c.name)}</th>`).join('')}</tr>`;
-    const rows = labelOrder.map(label => `<tr><td>${escapeHtml(label)}</td>${dataMap[label].map(v => `<td>${v ? escapeHtml(v) : '<span class="summary-empty">Not stated</span>'}</td>`).join('')}</tr>`).join('');
+    const rows = labelOrder.map(label => `<tr><td>${escapeHtml(label)}</td>${dataMap[label].map(v => `<td style="white-space: pre-wrap;">${v ? escapeHtml(v) : '<span class="summary-empty">Not stated</span>'}</td>`).join('')}</tr>`).join('');
     return `<table class="summary-table"><thead>${header}</thead><tbody>${rows}</tbody></table>`;
   }
 
@@ -925,7 +925,7 @@
         <tr>
           <td>${fmtDate(a.date)}</td>
           <td>${escapeHtml(a.doctor || '—')}</td>
-          <td>${escapeHtml(a.notes || '')}</td>
+          <td style="white-space: pre-wrap;">${escapeHtml(a.notes || '')}</td>
           <td><button class="btn-danger-text" data-remove-appt="${a.id}">Remove</button></td>
         </tr>`).join('')
       : '<tr class="empty-row"><td colspan="4">No appointments logged yet.</td></tr>';
@@ -1049,7 +1049,7 @@
       ? `<p style="color:var(--ink-soft); font-style:italic;">Not added yet.</p>`
       : (field.type === 'array'
           ? `<ul>${value.filter(x => String(x||'').trim()).map(li => `<li>${escapeHtml(li)}</li>`).join('')}</ul>`
-          : `<p>${escapeHtml(value)}</p>`);
+          : `<p style="white-space: pre-wrap;">${escapeHtml(value)}</p>`);
 
     return `<div class="detail-block${field.span2 ? ' span-2' : ''}">
       <div class="detail-block-head"><h4>${escapeHtml(field.label)}</h4><button class="link-btn" data-edit-field="${editKey}">${hasContent ? 'Edit' : 'Add'}</button></div>
