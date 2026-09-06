@@ -1027,6 +1027,26 @@
     return '\uD83D\uDCCE';
   }
 
+  // Browsers block top-level navigation straight to a data: URL in a new tab (silently
+  // shows a blank page). Converting to a Blob URL first works around that reliably.
+  async function openAttachment(att){
+    if (!att || !att.src) return;
+    try {
+      if (/^data:/i.test(att.src)){
+        const res = await fetch(att.src);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      } else {
+        window.open(att.src, '_blank', 'noopener');
+      }
+    } catch (e) {
+      console.error('Could not open attachment', e);
+      alert('Could not open this file.');
+    }
+  }
+
   function renderAttachmentsBlock(center){
     const key = center.id + '::attachments';
     const isEditing = editingBlocks.has(key);
@@ -1064,8 +1084,8 @@
       </div>`;
     }
     const gallery = atts.map(a => isImageAttachment(a)
-      ? `<a href="${escapeHtml(a.src)}" target="_blank" rel="noopener"><img class="attachment-thumb" src="${escapeHtml(a.src)}" /></a>`
-      : `<a class="file-chip" href="${escapeHtml(a.src)}" target="_blank" rel="noopener">${fileIconFor(a)} ${escapeHtml(a.name || 'File')}</a>`
+      ? `<a href="#" data-open-attachment="${center.id}::${a.id}"><img class="attachment-thumb" src="${escapeHtml(a.src)}" /></a>`
+      : `<a class="file-chip" href="#" data-open-attachment="${center.id}::${a.id}">${fileIconFor(a)} ${escapeHtml(a.name || 'File')}</a>`
     ).join('');
     return `<div class="detail-block span-2">
       <div class="detail-block-head"><h4>Photos &amp; documents</h4><button class="link-btn" data-edit-field="${key}">Manage</button></div>
@@ -1250,6 +1270,16 @@
           urlInput.value = '';
           renderConfinement();
         }
+        return;
+      }
+
+      const openEl = e.target.closest('[data-open-attachment]');
+      if (openEl){
+        e.preventDefault();
+        const [centerId, attId] = openEl.dataset.openAttachment.split('::');
+        const center = state.confinement.centers.find(x => x.id === centerId);
+        const att = center && (center.attachments || []).find(a => a.id === attId);
+        if (att) openAttachment(att);
         return;
       }
 
