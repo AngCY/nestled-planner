@@ -747,13 +747,34 @@
     } else {
       cardsEl.innerHTML = centers.map(c => {
         const isOpen = expandedCenters.has(c.id);
+        const isEditingHeader = editingBlocks.has(c.id + '::summary');
         const detailBlocks = isOpen ? [
           renderAttachmentsBlock(c),
           ...CENTER_FIELDS.map(f => renderDetailBlock(c, f))
         ].join('') : '';
         const thumbAtt = (c.attachments || []).find(a => isImageAttachment(a));
-        return `
-        <div class="center-card ${isOpen ? 'expanded' : ''}">
+        const headerHtml = isEditingHeader ? `
+          <div style="padding: 2px 0 14px;">
+            <div class="form-grid">
+              <div><label>Name</label><input type="text" data-summary-input="name" data-summary-center="${c.id}" value="${escapeHtml(c.name)}" /></div>
+              <div><label>Price</label><input type="text" data-summary-input="price" data-summary-center="${c.id}" value="${escapeHtml(c.price || '')}" /></div>
+              <div><label>Room</label><input type="text" data-summary-input="room" data-summary-center="${c.id}" value="${escapeHtml(c.room || '')}" /></div>
+              <div><label>Contact</label><input type="text" data-summary-input="contact" data-summary-center="${c.id}" value="${escapeHtml(c.contact || '')}" /></div>
+              <div>
+                <label>Status</label>
+                <select data-summary-input="status" data-summary-center="${c.id}">
+                  <option ${c.status === 'Considering' ? 'selected' : ''}>Considering</option>
+                  <option ${c.status === 'Booked' ? 'selected' : ''}>Booked</option>
+                  <option ${c.status === 'Declined' ? 'selected' : ''}>Declined</option>
+                </select>
+              </div>
+            </div>
+            <div class="detail-edit-actions">
+              <button class="btn-sage btn-small" data-save-summary-header="${c.id}">Save</button>
+              <button class="btn-ghost btn-small" data-cancel-field="${c.id}::summary">Cancel</button>
+            </div>
+          </div>
+        ` : `
           <div class="center-card-top" data-toggle-center="${c.id}">
             <div style="display:flex; gap:12px; align-items:flex-start;">
               ${thumbAtt ? `<img class="center-thumb" src="${escapeHtml(thumbAtt.src)}" />` : ''}
@@ -764,9 +785,14 @@
             </div>
             <div class="row-actions">
               <span class="pill ${pillClass[c.status] || 'pill-considering'}">${escapeHtml(c.status || 'Considering')}</span>
+              <button class="link-btn" data-edit-field="${c.id}::summary">Edit</button>
               <button class="btn-danger-text" data-remove-center="${c.id}">Remove</button>
             </div>
           </div>
+        `;
+        return `
+        <div class="center-card ${isOpen ? 'expanded' : ''}">
+          ${headerHtml}
           ${isOpen ? `<div class="center-detail">${detailBlocks}</div>` : ''}
         </div>`;
       }).join('');
@@ -1270,6 +1296,20 @@
           urlInput.value = '';
           renderConfinement();
         }
+        return;
+      }
+
+      const saveSummaryId = e.target.dataset.saveSummaryHeader;
+      if (saveSummaryId){
+        const center = state.confinement.centers.find(x => x.id === saveSummaryId);
+        if (center){
+          ['name', 'price', 'room', 'contact', 'status'].forEach(field => {
+            const input = document.querySelector(`[data-summary-center="${saveSummaryId}"][data-summary-input="${field}"]`);
+            if (input) center[field] = input.value.trim();
+          });
+        }
+        editingBlocks.delete(saveSummaryId + '::summary');
+        saveConfinementData(); renderConfinement();
         return;
       }
 
