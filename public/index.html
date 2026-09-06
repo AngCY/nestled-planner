@@ -1229,7 +1229,7 @@
     }
     const gallery = atts.map(a => isImageAttachment(a)
       ? `<a href="${escapeHtml(a.src)}" target="_blank" rel="noopener"><img class="attachment-thumb" src="${escapeHtml(a.src)}" /></a>`
-      : `<a class="file-chip" href="${escapeHtml(a.src)}" download="${escapeHtml(a.name || 'file')}" target="_blank" rel="noopener">${fileIconFor(a)} ${escapeHtml(a.name || 'File')}</a>`
+      : `<a class="file-chip" href="${escapeHtml(a.src)}" target="_blank" rel="noopener">${fileIconFor(a)} ${escapeHtml(a.name || 'File')}</a>`
     ).join('');
     return `<div class="detail-block span-2">
       <div class="detail-block-head"><h4>Photos &amp; documents</h4><button class="link-btn" data-edit-field="${key}">Manage</button></div>
