@@ -435,6 +435,7 @@
         <div class="sub">Log each visit so nothing gets forgotten before the next one.</div>
         <div class="form-grid">
           <div><label for="apptDate">Date</label><input type="date" id="apptDate" /></div>
+          <div><label for="apptTime">Time</label><input type="time" id="apptTime" /></div>
           <div><label for="apptDoctor">Doctor / clinic</label><input type="text" id="apptDoctor" placeholder="Optional" /></div>
         </div>
         <div>
@@ -443,7 +444,7 @@
         </div>
         <button class="btn-plum" id="addApptBtn">Add appointment</button>
         <table>
-          <thead><tr><th>Date</th><th>Doctor</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th>Date</th><th>Time</th><th>Doctor</th><th>Notes</th><th></th></tr></thead>
           <tbody id="apptRows"></tbody>
         </table>
       </div>
@@ -716,6 +717,13 @@
     if (isNaN(dt)) return '—';
     return dt.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
   }
+  function fmtTime(t){
+    if (!t) return '—';
+    const [h, m] = t.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return t;
+    const dt = new Date(); dt.setHours(h, m, 0, 0);
+    return dt.toLocaleTimeString('en-SG', { hour: 'numeric', minute: '2-digit' });
+  }
 
   /* ---------- FINANCIAL ---------- */
   function renderFinancial(){
@@ -921,14 +929,36 @@
     const apptRows = document.getElementById('apptRows');
     apptRows.innerHTML = appointments.length ? appointments
       .slice().sort((a,b)=> (a.date < b.date ? 1 : -1))
-      .map(a => `
+      .map(a => {
+        const editKey = 'appt::' + a.id;
+        if (editingBlocks.has(editKey)){
+          return `
+          <tr>
+            <td><input type="date" data-appt-input="date" data-appt-id="${a.id}" value="${escapeHtml(a.date || '')}" /></td>
+            <td><input type="time" data-appt-input="time" data-appt-id="${a.id}" value="${escapeHtml(a.time || '')}" /></td>
+            <td><input type="text" data-appt-input="doctor" data-appt-id="${a.id}" value="${escapeHtml(a.doctor || '')}" /></td>
+            <td><textarea data-appt-input="notes" data-appt-id="${a.id}" style="min-height:50px;">${escapeHtml(a.notes || '')}</textarea></td>
+            <td>
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <button class="btn-plum btn-small" data-save-appt="${a.id}">Save</button>
+                <button class="btn-ghost btn-small" data-cancel-appt="${a.id}">Cancel</button>
+              </div>
+            </td>
+          </tr>`;
+        }
+        return `
         <tr>
           <td>${fmtDate(a.date)}</td>
+          <td>${a.time ? fmtTime(a.time) : '—'}</td>
           <td>${escapeHtml(a.doctor || '—')}</td>
           <td style="white-space: pre-wrap;">${escapeHtml(a.notes || '')}</td>
-          <td><button class="btn-danger-text" data-remove-appt="${a.id}">Remove</button></td>
-        </tr>`).join('')
-      : '<tr class="empty-row"><td colspan="4">No appointments logged yet.</td></tr>';
+          <td>
+            <button class="link-btn" data-edit-appt="${a.id}">Edit</button>
+            <button class="btn-danger-text" data-remove-appt="${a.id}">Remove</button>
+          </td>
+        </tr>`;
+      }).join('')
+      : '<tr class="empty-row"><td colspan="5">No appointments logged yet.</td></tr>';
 
     const measureRows = document.getElementById('measureRows');
     measureRows.innerHTML = measurements.length ? measurements
@@ -1468,18 +1498,45 @@
       if (!date) { document.getElementById('apptDate').focus(); return; }
       state.gynae.appointments.push({
         id: uid(), date,
+        time: document.getElementById('apptTime').value,
         doctor: document.getElementById('apptDoctor').value.trim(),
         notes: document.getElementById('apptNotes').value.trim()
       });
       document.getElementById('apptDate').value = '';
+      document.getElementById('apptTime').value = '';
       document.getElementById('apptDoctor').value = '';
       document.getElementById('apptNotes').value = '';
       saveKey('gynae-data', state.gynae); renderGynae();
     });
     document.getElementById('apptRows').addEventListener('click', e => {
-      const id = e.target.dataset.removeAppt;
-      if (id){
-        state.gynae.appointments = state.gynae.appointments.filter(x => x.id !== id);
+      const removeId = e.target.dataset.removeAppt;
+      if (removeId){
+        state.gynae.appointments = state.gynae.appointments.filter(x => x.id !== removeId);
+        saveKey('gynae-data', state.gynae); renderGynae();
+        return;
+      }
+      const editId = e.target.dataset.editAppt;
+      if (editId){
+        editingBlocks.add('appt::' + editId);
+        renderGynae();
+        return;
+      }
+      const cancelId = e.target.dataset.cancelAppt;
+      if (cancelId){
+        editingBlocks.delete('appt::' + cancelId);
+        renderGynae();
+        return;
+      }
+      const saveId = e.target.dataset.saveAppt;
+      if (saveId){
+        const appt = state.gynae.appointments.find(x => x.id === saveId);
+        if (appt){
+          ['date', 'time', 'doctor', 'notes'].forEach(field => {
+            const input = document.querySelector(`[data-appt-id="${saveId}"][data-appt-input="${field}"]`);
+            if (input) appt[field] = input.value.trim();
+          });
+        }
+        editingBlocks.delete('appt::' + saveId);
         saveKey('gynae-data', state.gynae); renderGynae();
       }
     });
