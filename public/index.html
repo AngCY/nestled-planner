@@ -560,13 +560,14 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_rvSjVf_SrsPNv_vGezZB8A_0kRj5lEn';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   let currentUser = null;
+  let currentHouseholdId = null;
 
   async function loadKey(key, fallback){
     try {
       const { data, error } = await sb
         .from('app_data')
         .select('value')
-        .eq('user_id', currentUser.id)
+        .eq('household_id', currentHouseholdId)
         .eq('key', key)
         .maybeSingle();
       if (error) throw error;
@@ -583,8 +584,8 @@
       const { error } = await sb
         .from('app_data')
         .upsert(
-          { user_id: currentUser.id, key, value, updated_at: new Date().toISOString() },
-          { onConflict: 'user_id,key' }
+          { household_id: currentHouseholdId, key, value, updated_at: new Date().toISOString() },
+          { onConflict: 'household_id,key' }
         );
       if (error) throw error;
       if (note) { note.textContent = 'Saved'; setTimeout(() => { if (note.textContent === 'Saved') note.textContent = '\u00A0'; }, 1200); }
@@ -596,7 +597,7 @@
 
   async function deleteKey(key){
     try {
-      await sb.from('app_data').delete().eq('user_id', currentUser.id).eq('key', key);
+      await sb.from('app_data').delete().eq('household_id', currentHouseholdId).eq('key', key);
     } catch (e) { /* key may not exist, ignore */ }
   }
 
@@ -611,10 +612,25 @@
     return saveKey('center-attachments:' + centerId, attachments);
   }
 
+  async function loadHousehold(){
+    const { data, error } = await sb
+      .from('household_members')
+      .select('household_id')
+      .eq('user_id', currentUser.id)
+      .limit(1)
+      .maybeSingle();
+    if (error || !data){
+      console.error('Could not find a household for this user', error);
+      return null;
+    }
+    return data.household_id;
+  }
+
   async function ensureSignedIn(){
     const { data: { session } } = await sb.auth.getSession();
     if (session && session.user){
       currentUser = session.user;
+      currentHouseholdId = await loadHousehold();
       return;
     }
 
@@ -626,9 +642,10 @@
       overlay.style.display = 'flex';
       input.focus();
 
-      const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
+      const { data: sub } = sb.auth.onAuthStateChange(async (event, session) => {
         if (session && session.user){
           currentUser = session.user;
+          currentHouseholdId = await loadHousehold();
           overlay.style.display = 'none';
           sub.subscription.unsubscribe();
           resolve();
