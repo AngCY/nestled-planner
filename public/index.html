@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nestled — Pregnancy &amp; Confinement Planner</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root{
+    --cream: #F7F4EC;
+    --paper: #FFFFFF;
+    --ink: #2B2A25;
+    --ink-soft: #6B6A62;
+    --line: #E4DFD1;
+    --amber: #A6763D;
+    --amber-soft: #F1E3D0;
+    --sage: #4F7060;
+    --sage-soft: #DEE9E1;
+    --plum: #7A5C7E;
+    --plum-soft: #EAE0EC;
+    --steel: #3F6A82;
+    --steel-soft: #DCE8ED;
+    --danger: #B24A3C;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--cream);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    font-size: 16.5px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,h2,h3{ font-family: 'Fraunces', serif; font-weight: 500; margin: 0; }
+
+  #app{ max-width: 1440px; margin: 0 auto; padding: 32px 44px 90px; }
+  @media (max-width: 900px){ #app{ padding: 24px 20px 70px; } }
+
+  /* HEADER */
+  .app-header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    flex-wrap: wrap; gap: 16px;
+    padding-bottom: 22px; margin-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .app-title h1{ font-size: 34px; letter-spacing: -0.01em; }
+  .app-title p{ margin: 4px 0 0; color: var(--ink-soft); font-size: 15px; }
+  .countdown{
+    text-align: right;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 18px;
+    min-width: 200px;
+  }
+  .countdown .num{ font-family:'Fraunces', serif; font-size: 30px; line-height:1; color: var(--plum); }
+  .countdown .lbl{ font-size: 13px; color: var(--ink-soft); margin-top: 3px; }
+
+  /* TABS */
+  .tabs{ display:flex; gap: 4px; margin-bottom: 26px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tab-btn{
+    appearance: none; border: none; background: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600;
+    color: var(--ink-soft); padding: 10px 4px; margin-right: 26px;
+    border-bottom: 2.5px solid transparent; transition: color .15s, border-color .15s;
+  }
+  .tab-btn:hover{ color: var(--ink); }
+  .tab-btn.active{ color: var(--ink); }
+  .tab-btn[data-tab="financial"].active{ border-color: var(--amber); }
+  .tab-btn[data-tab="confinement"].active{ border-color: var(--sage); }
+  .tab-btn[data-tab="gynae"].active{ border-color: var(--plum); }
+  .tab-btn[data-tab="notepad"].active{ border-color: var(--steel); }
+
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; animation: fadein .18s ease; }
+  @keyframes fadein{ from{opacity:0; transform: translateY(3px);} to{opacity:1; transform:none;} }
+
+  /* SECTIONS / CARDS */
+  .section{
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left-width: 4px;
+    border-radius: 8px;
+    padding: 20px 22px;
+    margin-bottom: 18px;
+  }
+  .section.accent-amber{ border-left-color: var(--amber); }
+  .section.accent-sage{ border-left-color: var(--sage); }
+  .section.accent-plum{ border-left-color: var(--plum); }
+  .section.accent-steel{ border-left-color: var(--steel); }
+
+  .section h2{ font-size: 21px; margin-bottom: 4px; }
+  .section .sub{ color: var(--ink-soft); font-size: 14.5px; margin-bottom: 16px; }
+
+  /* SUMMARY STAT ROW */
+  .stat-row{ display:flex; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+  .stat{
+    flex: 1; min-width: 150px;
+    background: var(--cream);
+    border-radius: 8px;
+    padding: 13px 15px;
+  }
+  .stat .n{ font-family:'Fraunces', serif; font-size: 24px; }
+  .stat .l{ font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+
+  /* FORMS */
+  .form-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 12px; margin-bottom: 12px; }
+  label{ display:block; font-size: 13px; color: var(--ink-soft); margin-bottom: 4px; }
+  input, select, textarea{
+    width: 100%; font-family: 'Inter', sans-serif; font-size: 15.5px;
+    border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px;
+    background: var(--paper); color: var(--ink);
+  }
+  input:focus, select:focus, textarea:focus{ outline: 2px solid var(--sage); outline-offset: 1px; }
+  textarea{ resize: vertical; min-height: 60px; }
+
+  button{
+    font-family: 'Inter', sans-serif; font-weight: 600; font-size: 15px;
+    border: none; border-radius: 6px; padding: 10px 18px; cursor: pointer;
+    transition: opacity .15s;
+  }
+  button:hover{ opacity: .85; }
+  .btn-amber{ background: var(--amber); color: #fff; }
+  .btn-sage{ background: var(--sage); color: #fff; }
+  .btn-plum{ background: var(--plum); color: #fff; }
+  .btn-steel{ background: var(--steel); color: #fff; }
+  .btn-ghost{ background: transparent; color: var(--ink-soft); border: 1px solid var(--line); }
+  .btn-danger-text{ background:none; color: var(--danger); padding: 4px 8px; font-size: 13.5px; }
+
+  /* TABLES / LISTS */
+  table{ width:100%; border-collapse: collapse; margin-top: 6px; }
+  th{ text-align:left; font-size: 12.5px; text-transform: none; color: var(--ink-soft); font-weight:600; padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  td{ padding: 10px 8px; border-bottom: 1px solid var(--line); font-size: 15px; vertical-align: top; }
+  tr:last-child td{ border-bottom: none; }
+  .empty-row td{ color: var(--ink-soft); font-style: italic; text-align:center; padding: 18px; }
+
+  .checklist-item{ display:flex; align-items:flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .checklist-item:last-child{ border-bottom: none; }
+  .checklist-item input[type="checkbox"]{ width: auto; margin-top: 3px; accent-color: var(--sage); }
+  .checklist-item.done span{ text-decoration: line-through; color: var(--ink-soft); }
+  .checklist-item span{ flex:1; font-size: 15.5px; }
+
+  .pill{ display:inline-block; font-size: 12px; font-weight:600; padding: 2px 10px; border-radius: 20px; }
+  .pill-considering{ background: var(--amber-soft); color: var(--amber); }
+  .pill-booked{ background: var(--sage-soft); color: var(--sage); }
+  .pill-declined{ background: #F1DEDA; color: var(--danger); }
+
+  .inline-add{ display:flex; gap: 8px; margin-top: 10px; }
+  .inline-add input{ flex: 1; }
+
+  .center-card{ border: 1px solid var(--line); border-radius: 8px; padding: 15px 17px; margin-bottom: 10px; }
+  .center-card-top{ display:flex; justify-content:space-between; align-items:flex-start; gap: 10px; cursor: pointer; }
+  .center-card h3{ font-size: 17px; display:flex; align-items:center; gap: 8px; }
+  .center-card .chevron{ font-size: 12px; color: var(--ink-soft); transition: transform .15s; display:inline-block; }
+  .center-card.expanded .chevron{ transform: rotate(90deg); }
+  .center-card .meta{ font-size: 14px; color: var(--ink-soft); margin-top: 4px; }
+  .center-card .notes{ font-size: 14.5px; margin-top: 8px; color: var(--ink); }
+  .center-card .row-actions{ display:flex; gap:6px; align-items:center; }
+  .center-thumb{ width: 64px; height: 64px; border-radius: 8px; object-fit: cover; flex-shrink: 0; border: 1px solid var(--line); }
+  .center-detail{ margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); display:grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
+  .center-detail .detail-block h4{ font-family:'Inter',sans-serif; font-size: 13px; font-weight:700; color: var(--sage); text-transform: none; margin: 0; }
+  .center-detail .detail-block ul{ margin: 0; padding-left: 18px; }
+  .center-detail .detail-block li{ font-size: 14.5px; margin-bottom: 3px; }
+  .center-detail .detail-block p{ margin:0; font-size: 14.5px; }
+  .center-detail .detail-block.span-2{ grid-column: 1 / -1; }
+  .detail-block-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px; gap: 8px; }
+  .link-btn{ background:none; border:none; color: var(--sage); font-size: 12.5px; font-weight:600; cursor:pointer; padding: 2px 4px; white-space: nowrap; }
+  .link-btn:hover{ text-decoration: underline; }
+  .detail-edit-textarea{ width:100%; font-size: 14px; min-height: 90px; margin-top: 2px; }
+  .detail-edit-actions{ display:flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .btn-small{ padding: 6px 13px; font-size: 13px; }
+  .image-edit-block input[type="text"]{ margin-bottom: 6px; }
+  .attachment-grid{ display:flex; flex-wrap:wrap; gap: 10px; }
+  .attachment-thumb{ width: 76px; height: 76px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+  .file-chip{ display:flex; align-items:center; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 13.5px; background: var(--cream); text-decoration: none; color: var(--ink); }
+  .attachment-row-edit{ display:flex; align-items:center; justify-content:space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .attachment-row-edit:last-of-type{ border-bottom: none; }
+
+  /* CENTRE SUMMARY TABLE */
+  .summary-subsection{ margin-bottom: 26px; }
+  .summary-subsection:last-child{ margin-bottom: 0; }
+  .summary-subheading{ font-size: 16.5px; color: var(--sage); margin: 0 0 8px; font-weight: 500; }
+  .summary-table{ border-collapse: collapse; width: 100%; min-width: 560px; }
+  .summary-table th, .summary-table td{ border: 1px solid var(--line); padding: 10px 12px; font-size: 14.5px; text-align: left; vertical-align: top; }
+  .summary-table td ul{ padding-left: 18px; }
+  .summary-table thead th{ background: var(--sage); color: #fff; font-weight: 600; }
+  .summary-table thead th:first-child{ background: var(--paper); }
+  .summary-table tbody td:first-child{ background: var(--sage-soft); font-weight: 600; white-space: nowrap; }
+  .summary-empty{ color: var(--ink-soft); font-style: italic; font-size: 13px; }
+  @media (min-width: 1100px){ .center-detail{ grid-template-columns: 1fr 1fr 1fr; } }
+  @media (max-width: 640px){ .center-detail{ grid-template-columns: 1fr; } }
+
+  .two-col{ display:grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 720px){ .two-col{ grid-template-columns: 1fr; } .countdown{ text-align:left; } }
+
+  .save-note{ font-size: 12.5px; color: var(--ink-soft); text-align:right; margin-top: -8px; margin-bottom: 18px; min-height: 15px; }
+
+  /* ACCESS GATE */
+  #accessGate{
+    display: none; position: fixed; inset: 0; background: var(--cream);
+    align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+  }
+  .access-gate-card{
+    background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
+    padding: 32px; max-width: 360px; width: 100%; text-align: center;
+  }
+  .access-gate-card h1{ font-size: 26px; margin-bottom: 6px; }
+  .access-gate-card p{ color: var(--ink-soft); font-size: 14px; margin: 0 0 16px; }
+
+  /* NOTEPAD TAB */
+  .notepad-grid{ display:grid; grid-template-columns: 240px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 760px){ .notepad-grid{ grid-template-columns: 1fr; } }
+  .notepad-item{
+    display:flex; justify-content:space-between; align-items:center; gap: 6px;
+    padding: 10px 12px; border-radius: 7px; cursor: pointer; margin-bottom: 4px;
+    border: 1px solid transparent;
+  }
+  .notepad-item:hover{ background: var(--cream); }
+  .notepad-item.active{ background: var(--steel-soft); border-color: var(--steel); }
+  .notepad-item .np-title{ font-size: 14.5px; font-weight: 600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .notepad-item .np-remove{ background:none; border:none; color: var(--ink-soft); font-size: 12.5px; cursor:pointer; padding: 2px 4px; flex-shrink:0; }
+  .notepad-item .np-remove:hover{ color: var(--danger); }
+  #notepadTitleInput{
+    font-family: 'Fraunces', serif; font-size: 22px; border: none; border-bottom: 1px solid var(--line);
+    border-radius: 0; padding: 6px 2px; margin-bottom: 14px; background: transparent;
+  }
+  #notepadTitleInput:focus{ outline: none; border-bottom-color: var(--steel); }
+  #notepadContentInput{ min-height: 420px; font-size: 15.5px; line-height: 1.65; }
+  .notepad-empty{ color: var(--ink-soft); font-style: italic; padding: 30px 0; text-align:center; }
+</style>
+</head>
+<body>
+<div id="accessGate">
+  <div class="access-gate-card">
+    <h1>Nestled</h1>
+    <p>Sign in with your email to access your planner.</p>
+    <input type="email" id="accessGateInput" placeholder="you@example.com" autocomplete="email" />
+    <button id="accessGateBtn" class="btn-sage" style="width:100%; margin-top:10px;">Send magic link</button>
+    <div id="accessGateError" style="font-size:13px; margin-top:8px; min-height:16px;"></div>
+  </div>
+</div>
+<div id="app">
+
+  <div class="app-header">
+    <div class="app-title">
+      <h1>Nestled</h1>
+      <p>Your pregnancy, confinement &amp; finances, in one place</p>
+    </div>
+    <div class="countdown" id="countdownBox">
+      <div class="num" id="countdownNum">—</div>
+      <div class="lbl" id="countdownLbl">Set your due date in the Gynae tab</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="financial">Financial Planning</button>
+    <button class="tab-btn" data-tab="confinement">Confinement Management</button>
+    <button class="tab-btn" data-tab="gynae">Gynaecology Info</button>
+    <button class="tab-btn" data-tab="notepad">Notepad</button>
+  </div>
+
+  <div class="save-note" id="saveNote">&nbsp;</div>
+
+  <!-- FINANCIAL TAB -->
+  <div class="tab-panel active" id="tab-financial">
+
+    <div class="section accent-amber">
+      <h2>Budget overview</h2>
+      <div class="sub">Track planned vs. actual spend across SGD and MYR. Totals below convert to an approximate SGD equivalent at SGD 1 = RM 3.17.</div>
+      <div class="stat-row">
+        <div class="stat"><div class="n" id="statPlanned">—</div><div class="l">Total planned (≈SGD)</div></div>
+        <div class="stat"><div class="n" id="statActual">—</div><div class="l">Total actual (≈SGD)</div></div>
+        <div class="stat"><div class="n" id="statGoal">—</div><div class="l">Budget goal</div></div>
+        <div class="stat"><div class="n" id="statRemaining">—</div><div class="l">Remaining vs goal</div></div>
+      </div>
+      <div class="form-grid" style="margin-top:14px; max-width: 340px;">
+        <div>
+          <label for="goalAmount">Budget goal</label>
+          <input type="number" id="goalAmount" placeholder="e.g. 15000" min="0" />
+        </div>
+        <div>
+          <label for="goalCurrency">Currency</label>
+          <select id="goalCurrency">
+            <option value="SGD">SGD</option>
+            <option value="MYR">MYR</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section accent-amber">
+      <h2>Expenses</h2>
+      <div class="sub">Confinement fees, hospital bills, baby gear, insurance — anything you're budgeting for.</div>
+      <div class="form-grid">
+        <div>
+          <label for="expCategory">Category</label>
+          <select id="expCategory">
+            <option>Confinement centre</option>
+            <option>Hospital / delivery</option>
+            <option>Gynae / prenatal</option>
+            <option>Baby gear</option>
+            <option>Insurance</option>
+            <option>Confinement nanny / helper</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label for="expItem">Item</label>
+          <input type="text" id="expItem" placeholder="e.g. LYC Deluxe deposit" />
+        </div>
+        <div>
+          <label for="expPlanned">Planned</label>
+          <input type="number" id="expPlanned" min="0" placeholder="0" />
+        </div>
+        <div>
+          <label for="expActual">Actual</label>
+          <input type="number" id="expActual" min="0" placeholder="0" />
+        </div>
+        <div>
+          <label for="expCurrency">Currency</label>
+          <select id="expCurrency">
+            <option value="SGD">SGD</option>
+            <option value="MYR">MYR</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-amber" id="addExpenseBtn">Add expense</button>
+
+      <table>
+        <thead>
+          <tr><th>Category</th><th>Item</th><th>Planned</th><th>Actual</th><th></th></tr>
+        </thead>
+        <tbody id="expenseRows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- CONFINEMENT TAB -->
+  <div class="tab-panel" id="tab-confinement">
+
+    <div class="section accent-sage">
+      <h2>Confinement window</h2>
+      <div class="sub">Set your expected delivery date and confinement length to see your stay dates.</div>
+      <div class="form-grid" style="max-width: 460px;">
+        <div>
+          <label for="deliveryDate">Expected / actual delivery date</label>
+          <input type="date" id="deliveryDate" />
+        </div>
+        <div>
+          <label for="confDuration">Confinement length</label>
+          <select id="confDuration">
+            <option value="28">28 days</option>
+            <option value="30">30 days</option>
+            <option value="44">44 days</option>
+          </select>
+        </div>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><div class="n" id="confStart">—</div><div class="l">Confinement starts</div></div>
+        <div class="stat"><div class="n" id="confEnd">—</div><div class="l">Confinement ends</div></div>
+      </div>
+    </div>
+
+    <div class="section accent-sage">
+      <h2>Centres shortlist</h2>
+      <div class="sub">Your candidate confinement centres, so all the details live in one place.</div>
+      <div id="centerCards"></div>
+
+      <div style="border-top:1px solid var(--line); padding-top:14px; margin-top: 6px;">
+        <label for="cQuickName">Add a centre by name</label>
+        <div class="inline-add">
+          <input type="text" id="cQuickName" placeholder="e.g. Confinement Centre XYZ" />
+          <button class="btn-sage" id="addCenterBtn">Add centre</button>
+        </div>
+        <div class="sub" style="margin-top:6px; margin-bottom:0;">It'll appear below as a card — open it and use the Add/Edit buttons on each section to fill in price, room, care details, and photos.</div>
+      </div>
+
+      <details style="margin-top:16px;">
+        <summary style="cursor:pointer; font-size:13px; color:var(--ink-soft);">Import centre(s) via JSON (paste what Claude gives you)</summary>
+        <div style="margin-top:10px;">
+          <label for="importCentersInput">Paste JSON here</label>
+          <textarea id="importCentersInput" style="min-height:100px; font-family: 'SFMono-Regular', Consolas, monospace; font-size:12.5px;" placeholder='[{"name":"Centre name","price":"RM 20,000 incl. SST","room":"Deluxe, 300 sqft","contact":"+60 ...","address":"...","attachments":[{"name":"brochure.pdf","src":"https://..."}],"status":"Considering","packagePrice":"RM 20,000","totalInclSst":"RM 21,600","totalSgd":"\u2248 SGD 6,800","deposit":"...","balanceDay1":"...","pricingDetail":"...","roomFacilities":["..."],"motherCare":["..."],"babyCare":["..."],"extras":["..."],"notes":"..."}]'></textarea>
+          <div style="display:flex; gap:8px; margin-top:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn-sage" id="importCentersBtn">Import</button>
+            <button class="btn-ghost" id="exportCentersBtn">Copy current list as JSON</button>
+            <span id="importStatus" style="font-size:12px;"></span>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="section accent-sage">
+      <h2>Centre summary</h2>
+      <div class="sub">A read-only, side-by-side view built automatically from your centre cards above — edit details there, not here. New centres you add appear as their own column automatically.</div>
+      <div id="centerSummary" style="overflow-x:auto;"></div>
+    </div>
+
+    <div class="section accent-sage">
+      <h2>Preparation checklist</h2>
+      <div class="sub">Everything to arrange before baby arrives.</div>
+      <div id="taskList"></div>
+      <div class="inline-add">
+        <input type="text" id="newTaskInput" placeholder="Add a task..." />
+        <button class="btn-sage" id="addTaskBtn">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GYNAE TAB -->
+  <div class="tab-panel" id="tab-gynae">
+
+    <div class="section accent-plum">
+      <h2>Pregnancy profile</h2>
+      <div class="sub">The essentials, kept handy for every appointment.</div>
+      <div class="form-grid">
+        <div><label for="gEdd">Expected due date</label><input type="date" id="gEdd" /></div>
+        <div><label for="gClinic">Clinic / gynaecologist</label><input type="text" id="gClinic" placeholder="Dr. / clinic name" /></div>
+        <div><label for="gBlood">Blood type</label><input type="text" id="gBlood" placeholder="e.g. O+" /></div>
+        <div><label for="gAllergies">Allergies</label><input type="text" id="gAllergies" placeholder="e.g. Penicillin" /></div>
+      </div>
+      <div>
+        <label for="gMeds">Current medications / supplements</label>
+        <textarea id="gMeds" placeholder="e.g. Folic acid, iron, DHA"></textarea>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="section accent-plum">
+        <h2>Appointments</h2>
+        <div class="sub">Log each visit so nothing gets forgotten before the next one.</div>
+        <div class="form-grid">
+          <div><label for="apptDate">Date</label><input type="date" id="apptDate" /></div>
+          <div><label for="apptDoctor">Doctor / clinic</label><input type="text" id="apptDoctor" placeholder="Optional" /></div>
+        </div>
+        <div>
+          <label for="apptNotes">Notes</label>
+          <textarea id="apptNotes" placeholder="What was discussed, next steps..."></textarea>
+        </div>
+        <button class="btn-plum" id="addApptBtn">Add appointment</button>
+        <table>
+          <thead><tr><th>Date</th><th>Doctor</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="apptRows"></tbody>
+        </table>
+      </div>
+
+      <div class="section accent-plum">
+        <h2>Measurements</h2>
+        <div class="sub">Weight, blood pressure, and any numbers worth tracking over time.</div>
+        <div class="form-grid">
+          <div><label for="mDate">Date</label><input type="date" id="mDate" /></div>
+          <div><label for="mWeight">Weight (kg)</label><input type="number" id="mWeight" step="0.1" /></div>
+          <div><label for="mBp">Blood pressure</label><input type="text" id="mBp" placeholder="e.g. 118/76" /></div>
+        </div>
+        <div>
+          <label for="mNotes">Notes</label>
+          <textarea id="mNotes" placeholder="Fundal height, baby's heartbeat, etc."></textarea>
+        </div>
+        <button class="btn-plum" id="addMeasureBtn">Add measurement</button>
+        <table>
+          <thead><tr><th>Date</th><th>Weight</th><th>BP</th><th></th></tr></thead>
+          <tbody id="measureRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section accent-plum">
+      <h2>Questions for the doctor</h2>
+      <div class="sub">Jot things down as they come to mind, tick them off once answered.</div>
+      <div id="questionList"></div>
+      <div class="inline-add">
+        <input type="text" id="newQuestionInput" placeholder="Add a question..." />
+        <button class="btn-plum" id="addQuestionBtn">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTEPAD TAB -->
+  <div class="tab-panel" id="tab-notepad">
+    <div class="section accent-steel">
+      <h2>Notepad</h2>
+      <div class="sub">Keep separate running notes — one per topic, each with its own title.</div>
+      <div class="notepad-grid">
+        <div class="notepad-sidebar">
+          <div id="notepadList"></div>
+          <button class="btn-steel" id="addNotepadBtn" style="width:100%; margin-top:8px;">+ New notepad</button>
+        </div>
+        <div class="notepad-main">
+          <input type="text" id="notepadTitleInput" placeholder="Untitled notepad" />
+          <textarea id="notepadContentInput" placeholder="Start typing..."></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const SGD_PER_MYR = 1 / 3.17;
+  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  function debounce(fn, wait){
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
+  }
+
+  const defaultState = {
+    financial: {
+      goal: { amount: null, currency: 'SGD' },
+      expenses: []
+    },
+    confinement: {
+      deliveryDate: '',
+      duration: 28,
+      centers: [
+        { id: uid(), name: 'LYC Mother & Child Centre — Deluxe (JB Embrace)', price: 'RM 24,300 incl. 8% SST', room: 'King bed, private bath w/ auto-washlet, aircon, air purifier', contact: '+65 8031 7346', status: 'Considering',
+          packagePrice: 'RM 22,500', totalInclSst: 'RM 24,300', totalSgd: '\u2248 SGD 7,666', deposit: 'Not stated', balanceDay1: '\u2014',
+          address: 'Level 2, The Avenue M, 16 Skudai Hwy, Straits View, 80200 Johor Bahru, Johor',
+          pricingDetail: 'RM 22,500 + 8% SST = RM 24,300 (Deluxe, JB Embrace Package). \u2248SGD 7,666 at SGD 1 = RM 3.17.',
+          roomFacilities: [
+            'Room size: Not restated in official package sheet (general amenities list separately cited 360\u2013420 sqft)',
+            "In-room features: King bed; private bathroom with auto-washlet; individual control aircon; air purifier; single arm chair; nursing pillow; WiFi; fridge; microwave; kettle; hair dryer; pantry (Deluxe tier does NOT include sofa bed, working station, living room, baby changing table, food warmer, bottle steriliser, or coffee machine \u2014 those are Premier/VIP only)",
+            'Security: 24/7 CCTV security; periodical UV sterilisation of room & nursery',
+            'Other room notes: Non-smoking room; note: earlier flyer mentioned 4K Smart LED TV / Astro, floor-length windows, couple dining table \u2014 not confirmed in this official Deluxe tier sheet, so best to verify which apply',
+            'Dad perks: Complimentary stay for father',
+            'Parking: Free open-air parking, or hotel parking at RM 5 per entry'
+          ],
+          motherCare: [
+            'Medical rounds: Doctor visit (included)',
+            'Vitals / wound care: Not detailed',
+            'Massage / body treatments: 28 days herbal bath; postnatal yoga & relaxation classes; acupressure ball therapy; Deluxe complimentary: prenatal leg massage x1 (30 min, ~available at BMB JB/SG), postnatal massage x1, ginger hair wash x1, Japanese Onsen hot stone spa x1, womb care therapy x1 (45 min, post-confinement, ~available at BMB JB/SG). Additional postnatal massage/ginger hair wash/onsen spa sessions available at extra charge via One-Stop Postnatal Wellness Centre',
+            'Lactation support: Breastfeeding guidance & assistance from in-house caregivers; daily lactation (milk booster) tea; breastfeeding educational class',
+            'Meals: 5 nutritious meals/day (in-house kitchen), daily herbal tonic soup, daily lactation tea, daily thirst-quenching tea (water retention/bloating), free-flow premium red dates tea, common pantry beverages/refreshments',
+            "Tonics included: Daily herbal tonic soup, lactation tea, thirst-quenching tea (no bird's nest / chicken essence itemised at Deluxe tier)",
+            'Housekeeping / laundry: Daily housekeeping; periodical UV sterilisation of room & nursery; laundry services for companions (extra charge)',
+            'Classes: Postnatal yoga & relaxation; Gentle Birth online class x1; breastfeeding; 1-to-1 baby bathing demo (nurse-guided); nutrition for mother & baby; baby care (massage/bathing/feeding/burping); emergency infant care; pediatric chiropractic',
+            "Maternity care products: Nursing pads (60's) x1, maternity pads (20's) x1, maternity mesh panty (4's) x7, premium clothing during stay, shampoo/shower gel/hand wash"
+          ],
+          babyCare: [
+            'Nursing coverage: 24/7 baby care by well-trained caregivers',
+            'CCTV: 24/7 baby surveillance system (babycam) accessible by parents; dedicated baby observation room',
+            'Doctor rounds: Doctor visit (included)',
+            'Monitoring: Baby jaundice monitoring; daily baby observation chart (weight, milk intake, output)',
+            'Diapers & formula: Premium baby diapers during stay; baby milk bottle x2 provided (formula/milk powder not itemised)',
+            'Bathing / massage: Baby milk bottle cleaning & sterilisation; 1-to-1 baby bathing demonstration guided by nurses; baby massage taught in class (not stated as daily service)',
+            'Feeding guidance: Breastfeeding guidance & assistance; baby care class covers feeding & burping; emergency infant care class',
+            'Early development: Pediatric chiropractic class (not stated as ongoing service)',
+            'Baby clothing: Premium quality clothing & wrapper during stay'
+          ],
+          extras: [
+            'Deluxe complimentary items: Gentle Birth online class x1, prenatal leg massage x1, postnatal massage x1, ginger hair wash x1, Japanese Onsen hot stone spa x1, womb care therapy x1',
+            "Maternity products: nursing pads 60's x1, maternity pads 20's x1, maternity mesh panty 4's x7",
+            'Baby milk bottle x2',
+            'GBOJ sign-up (Great Eastern, if still running): free home baby vaccinations; 6-month personal accident cover; Mothercare discounts; free BEABA training cup; personalised baby gift hamper; 20-min financial planning session'
+          ],
+          notes: 'Confirm whether room size / TV / Astro mentioned in an older flyer actually apply to the Deluxe tier.' },
+        { id: uid(), name: 'LOVIA Postpartum Care — Deluxe', price: 'RM 17,999 + SST (promo, was RM 26,999)', room: '275 sqft — private bath, nursing sofa, king bed, mini pantry', contact: '', status: 'Considering',
+          packagePrice: 'RM 17,999', totalInclSst: '\u2248 RM 19,439*', totalSgd: '\u2248 SGD 6,133', deposit: 'Not stated', balanceDay1: '\u2014',
+          address: 'No.55/57, 11, Persiaran Jaya Putra, Bandar Jaya Putra, 81100 Johor Bahru, Johor',
+          pricingDetail: 'RM 17,999 (promo, was RM 26,999). SST not itemised on flyer — confirm exact total before booking.',
+          roomFacilities: [
+            'Room size: 275 sqft (Deluxe, Medium)',
+            'In-room features: Private bathroom; nursing sofa; mini pantry & fridge; king-size bed; private lift access + access card; smart TV, WiFi, dressing table',
+            'Security: Private lift + personal access card',
+            'Other room notes: \u2014',
+            'Dad perks: Not stated',
+            'Parking: Not stated'
+          ],
+          motherCare: [
+            'Medical rounds: Doctor consultation, TCM pulse diagnosis',
+            'Vitals / wound care: Not explicitly listed on this flyer',
+            'Massage / body treatments: Traditional Urut massage x2, hair wash x2, facial treatment x2',
+            'Lactation support: Lactation consultation & support',
+            'Meals: 5 meals/day, herbal soup programme (Premium tier), free-flow drinks & snacks',
+            "Tonics included: Premium bird's nest soup x2, chicken essence x2",
+            'Housekeeping / laundry: Nursing wear & laundry included',
+            'Classes: Postnatal education classes',
+            'Maternity care products: Not stated'
+          ],
+          babyCare: [
+            'Nursing coverage: 24/7 professional nursing care',
+            'CCTV: 1-to-1 CCTV monitoring',
+            'Doctor rounds: Weekly doctor consultation',
+            'Monitoring: Daily physical assessment',
+            'Diapers & formula: Unlimited diapers & milk powder (in-centre, select brands)',
+            'Bathing / massage: Baby bathing included',
+            'Feeding guidance: Breastfeeding-friendly care',
+            'Early development: Early sensory development',
+            'Baby clothing: Not stated'
+          ],
+          extras: ['Baby photoshoot session', 'Zhui Fong So Hup Wan x2 boxes', "Premium bird's nest soup x2, chicken essence x2"],
+          notes: 'Promo price may have an expiry — confirm current validity.' },
+        { id: uid(), name: "Ladies' Paradise — Deluxe", price: 'RM 20,399 incl. SST', room: '320 sqft studio', contact: '+60 19-794 9988', status: 'Considering',
+          packagePrice: 'RM 18,888', totalInclSst: 'RM 20,399', totalSgd: '\u2248 SGD 6,436', deposit: '\u2248 SGD 1,363 (RM 4,320)', balanceDay1: '\u2248 SGD 5,073 (RM 16,079)',
+          address: 'Not stated on flyer — near Tuas 2nd Link; 5 min to Gleneagles specialist hospital',
+          pricingDetail: 'RM 18,888 + 8% SST (RM 1,511) = RM 20,399. Deposit RM 4,320. Balance due day 1: RM 16,079.',
+          roomFacilities: [
+            'Room size: 320 sqft (Deluxe, studio)',
+            'In-room features: Individual air-con; WiFi; TV + TV box; bathroom amenities (dryer, towels, toiletries); slippers; bottle steriliser & baby music in nursery',
+            'Security: 24hr CCTV (common areas), floor access card, electronic door lock, security guard',
+            'Other room notes: \u2014',
+            'Dad perks: Free stay + free gym + free pool access',
+            'Parking: Free parking'
+          ],
+          motherCare: [
+            'Medical rounds: Nurse daily, TCM weekly, specialist doctor monthly',
+            'Vitals / wound care: Vitals monitoring, lochia/uterus/perineal wound/swelling assessment, perineal cleansing + infrared therapy, wound care, personalised care plan',
+            'Massage / body treatments: 120-min postpartum recovery massage x1, 60-min lactation massage x1, red-light sauna x1, herbal foot bath x1, hair wash x1, headache/wind treatment NOT included (prenatal massage x1 only if deposit paid within 1 week of visit)',
+            'Lactation support: Lactation consultation + personalised breastfeeding plan',
+            'Meals: 6 meals/day, custom herbal tonic soup, unlimited red-date tea (10+ herbs), functional confinement teas, daily lactation milk powder',
+            "Tonics included: Peach gum x1, donkey-hide gelatin x1, snow frog x1, fresh double-boiled bird's nest x1, tonic wine, black gold pills (fresh chicken essence NOT included)",
+            'Housekeeping / laundry: Daily assistant service (meals, laundry, tidying), room cleaned 3x/week, room sanitised before check-in',
+            'Classes: New parent education class',
+            'Maternity care products: Not stated'
+          ],
+          babyCare: [
+            'Nursing coverage: 24-hour nursing care',
+            'CCTV: CCTV (common areas \u2014 flyer does not confirm 1-to-1 in-room baby CCTV for this tier)',
+            'Doctor rounds: Nurse daily, specialist doctor monthly',
+            'Monitoring: Daily jaundice, vitals, feeding & output records; full data tracking for mother & baby',
+            'Diapers & formula: Diapers and formula milk included',
+            'Bathing / massage: Daily bath (1x/day) + daily baby massage (immunity/jaundice/wind relief)',
+            'Feeding guidance: Breast/formula/mixed feeding guidance, correct feeding posture, milk storage & quantity calculation, routine building',
+            'Early development: Tactile stimulation x1 (black & white visual card training NOT included at this tier)',
+            'Baby clothing: Not stated'
+          ],
+          extras: ['Baby photography — 1 photo, 5R framed', '10 years / 3,000+ families served, 10+ industry awards', '4-star hotel-style environment'],
+          notes: 'Deluxe tier excludes fresh chicken essence and visual card training (both included at Premier).' },
+        { id: uid(), name: "Ladies' Paradise — Premier", price: 'RM 23,639 incl. SST', room: '\u2248650 sqft, 1 bedroom + living room', contact: '+60 19-794 9988', status: 'Considering',
+          packagePrice: 'RM 21,888', totalInclSst: 'RM 23,639', totalSgd: '\u2248 SGD 7,457', deposit: '\u2248 SGD 1,363 (RM 4,320)', balanceDay1: '\u2248 SGD 6,095 (RM 19,319)',
+          address: 'Not stated on flyer — near Tuas 2nd Link; 5 min to Gleneagles specialist hospital',
+          pricingDetail: 'RM 21,888 + 8% SST (RM 1,751) = RM 23,639. Deposit RM 4,320. Balance due day 1: RM 19,319.',
+          roomFacilities: [
+            'Room size: \u2248650 sqft (1 bedroom + living room)',
+            'In-room features: Separate bedroom + living room layout; individual air-con; WiFi; TV + TV box; bathroom amenities (dryer, towels, toiletries); slippers; bottle steriliser & baby music in nursery',
+            'Security: 24hr CCTV (common areas), floor access card, electronic door lock, security guard',
+            'Other room notes: \u2014',
+            'Dad perks: Free stay + free gym + free pool access',
+            'Parking: Free parking'
+          ],
+          motherCare: [
+            'Medical rounds: Nurse daily, TCM weekly, specialist doctor monthly',
+            'Vitals / wound care: Same as Deluxe (vitals, postpartum assessment, perineal cleansing + infrared therapy, wound care, personalised care plan)',
+            'Massage / body treatments: 120-min postpartum recovery massage x2, 60-min lactation massage x1, red-light sauna x2, herbal foot bath x1, headache/wind treatment x1, hair wash x2 (upgrades vs Deluxe; prenatal massage x1 only if deposit paid within 1 week of visit)',
+            'Lactation support: Lactation consultation + personalised breastfeeding plan',
+            'Meals: Same as Deluxe \u2014 6 meals/day, custom herbal tonic soup, unlimited red-date tea (10+ herbs), functional confinement teas, daily lactation milk powder',
+            "Tonics included: Peach gum x1, donkey-hide gelatin x1, snow frog x1, fresh double-boiled bird's nest x2, fresh chicken essence x1, tonic wine, black gold pills (upgrades vs Deluxe: bird's nest x2 & chicken essence now included)",
+            'Housekeeping / laundry: Same as Deluxe \u2014 daily assistant service, room cleaned 3x/week, room sanitised before check-in',
+            'Classes: New parent education class',
+            'Maternity care products: Not stated'
+          ],
+          babyCare: [
+            'Nursing coverage: 24-hour nursing care',
+            'CCTV: CCTV (common areas \u2014 flyer does not confirm 1-to-1 in-room baby CCTV for this tier)',
+            'Doctor rounds: Nurse daily, specialist doctor monthly',
+            'Monitoring: Daily jaundice, vitals, feeding & output records; full data tracking for mother & baby',
+            'Diapers & formula: Diapers and formula milk included',
+            'Bathing / massage: Daily bath (1x/day) + daily baby massage (immunity/jaundice/wind relief)',
+            'Feeding guidance: Breast/formula/mixed feeding guidance, correct feeding posture, milk storage & quantity calculation, routine building',
+            'Early development: Tactile stimulation x1 AND black & white visual card training x1 (upgrade vs Deluxe, which excludes visual card training)',
+            'Baby clothing: Not stated'
+          ],
+          extras: ['Baby photography — 1 photo, 5R framed', '10 years / 3,000+ families served, 10+ industry awards', '4-star hotel-style environment', 'More generous massage/tonic quantities than Deluxe (see Mother Care above)'],
+          notes: 'Best if space matters (separate living room) — total cost lands close to LYC.' }
+      ],
+      tasks: [
+        { id: uid(), text: 'Shortlist & visit confinement centres', done: true },
+        { id: uid(), text: 'Confirm final centre & pay deposit', done: false },
+        { id: uid(), text: 'Arrange transport for confinement stay', done: false },
+        { id: uid(), text: 'Pack hospital bag', done: false },
+        { id: uid(), text: 'Pack confinement bag (nursing wear, toiletries)', done: false },
+        { id: uid(), text: 'Register for antenatal / parenting classes', done: false },
+        { id: uid(), text: 'Arrange support for dad / additional helper', done: false },
+        { id: uid(), text: 'Confirm insurance sign-up (e.g. GBOJ)', done: false },
+        { id: uid(), text: 'Prepare baby essentials checklist', done: false },
+        { id: uid(), text: 'Confirm paediatrician for newborn checkups', done: false }
+      ]
+    },
+    gynae: {
+      profile: { edd: '', clinic: '', bloodType: '', allergies: '', medications: '' },
+      appointments: [],
+      measurements: [],
+      questions: []
+    },
+    notepad: {
+      notepads: [
+        { id: uid(), title: 'General notes', content: '', updatedAt: Date.now() }
+      ],
+      activeId: null
+    }
+  };
+  defaultState.notepad.activeId = defaultState.notepad.notepads[0].id;
+
+  let state = JSON.parse(JSON.stringify(defaultState));
+  const expandedCenters = new Set();
+  const editingBlocks = new Set();
+  const CENTER_FIELDS = [
+    { key: 'address', label: 'Address', type: 'string' },
+    { key: 'pricingDetail', label: 'Pricing notes', type: 'string' },
+    { key: 'packagePrice', label: 'Package price', type: 'string' },
+    { key: 'totalInclSst', label: 'Total incl. 8% SST', type: 'string' },
+    { key: 'totalSgd', label: 'Total in SGD', type: 'string' },
+    { key: 'deposit', label: 'Deposit', type: 'string' },
+    { key: 'balanceDay1', label: 'Balance due day 1', type: 'string' },
+    { key: 'roomFacilities', label: 'Room & facilities', type: 'array' },
+    { key: 'motherCare', label: 'Mother care', type: 'array' },
+    { key: 'babyCare', label: 'Baby care', type: 'array' },
+    { key: 'extras', label: 'Perks & extras', type: 'array' },
+    { key: 'notes', label: 'Notes', type: 'string', span2: true }
+  ];
+  const PRICING_FIELDS = [
+    { key: 'packagePrice', label: 'Package price' },
+    { key: 'totalInclSst', label: 'Total incl. 8% SST' },
+    { key: 'totalSgd', label: 'Total in SGD' },
+    { key: 'deposit', label: 'Deposit' },
+    { key: 'balanceDay1', label: 'Balance due day 1' }
+  ];
+
+  const SUPABASE_URL = 'https://otkacllfvmembqwmlago.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_rvSjVf_SrsPNv_vGezZB8A_0kRj5lEn';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  let currentUser = null;
+
+  async function loadKey(key, fallback){
+    try {
+      const { data, error } = await sb
+        .from('app_data')
+        .select('value')
+        .eq('user_id', currentUser.id)
+        .eq('key', key)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? data.value : fallback;
+    } catch (e) {
+      console.error('Load error', key, e);
+      return fallback;
+    }
+  }
+
+  async function saveKey(key, value){
+    const note = document.getElementById('saveNote');
+    try {
+      const { error } = await sb
+        .from('app_data')
+        .upsert(
+          { user_id: currentUser.id, key, value, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id,key' }
+        );
+      if (error) throw error;
+      if (note) { note.textContent = 'Saved'; setTimeout(() => { if (note.textContent === 'Saved') note.textContent = '\u00A0'; }, 1200); }
+    } catch (e) {
+      if (note) note.textContent = 'Could not save — changes may be lost on reload';
+      console.error('Storage error', key, e);
+    }
+  }
+
+  async function deleteKey(key){
+    try {
+      await sb.from('app_data').delete().eq('user_id', currentUser.id).eq('key', key);
+    } catch (e) { /* key may not exist, ignore */ }
+  }
+
+  // Attachments (images/PDFs/etc per centre) are stored under their own key so a
+  // large file doesn't bloat the shared confinement-data blob.
+  function saveConfinementData(){
+    const clone = JSON.parse(JSON.stringify(state.confinement));
+    clone.centers = clone.centers.map(({ attachments, ...rest }) => rest);
+    return saveKey('confinement-data', clone);
+  }
+  function saveCenterAttachments(centerId, attachments){
+    return saveKey('center-attachments:' + centerId, attachments);
+  }
+
+  async function ensureSignedIn(){
+    const { data: { session } } = await sb.auth.getSession();
+    if (session && session.user){
+      currentUser = session.user;
+      return;
+    }
+
+    return new Promise((resolve) => {
+      const overlay = document.getElementById('accessGate');
+      const input = document.getElementById('accessGateInput');
+      const btn = document.getElementById('accessGateBtn');
+      const statusEl = document.getElementById('accessGateError');
+      overlay.style.display = 'flex';
+      input.focus();
+
+      const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
+        if (session && session.user){
+          currentUser = session.user;
+          overlay.style.display = 'none';
+          sub.subscription.unsubscribe();
+          resolve();
+        }
+      });
+
+      async function sendLink(){
+        const email = input.value.trim();
+        if (!email) { input.focus(); return; }
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+        const { error } = await sb.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: window.location.origin + window.location.pathname },
+        });
+        btn.disabled = false;
+        btn.textContent = 'Send magic link';
+        if (error){
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = error.message;
+        } else {
+          statusEl.style.color = 'var(--sage)';
+          statusEl.textContent = 'Check your email for a sign-in link, then come back to this tab.';
+        }
+      }
+      btn.addEventListener('click', sendLink);
+      input.addEventListener('keydown', e => { if (e.key === 'Enter') sendLink(); });
+    });
+  }
+
+  async function init(){
+    await ensureSignedIn();
+
+    state.financial = await loadKey('financial-data', defaultState.financial);
+    state.confinement = await loadKey('confinement-data', defaultState.confinement);
+    state.gynae = await loadKey('gynae-data', defaultState.gynae);
+    state.notepad = await loadKey('notepad-data', defaultState.notepad);
+
+    // Load each centre's attachments from their own storage key
+    for (const c of state.confinement.centers){
+      c.attachments = await loadKey('center-attachments:' + c.id, c.attachments || []);
+    }
+
+    document.getElementById('goalAmount').value = state.financial.goal.amount || '';
+    document.getElementById('goalCurrency').value = state.financial.goal.currency || 'SGD';
+    document.getElementById('deliveryDate').value = state.confinement.deliveryDate || '';
+    document.getElementById('confDuration').value = state.confinement.duration || 28;
+    document.getElementById('gEdd').value = state.gynae.profile.edd || '';
+    document.getElementById('gClinic').value = state.gynae.profile.clinic || '';
+    document.getElementById('gBlood').value = state.gynae.profile.bloodType || '';
+    document.getElementById('gAllergies').value = state.gynae.profile.allergies || '';
+    document.getElementById('gMeds').value = state.gynae.profile.medications || '';
+
+    renderAll();
+    bindEvents();
+  }
+
+  function toSgd(amount, currency){
+    const n = Number(amount) || 0;
+    return currency === 'MYR' ? n * SGD_PER_MYR : n;
+  }
+  function fmtSgd(n){
+    return 'S$' + n.toLocaleString('en-SG', { maximumFractionDigits: 0 });
+  }
+  function fmtDate(d){
+    if(!d) return '—';
+    const dt = new Date(d + 'T00:00:00');
+    if (isNaN(dt)) return '—';
+    return dt.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  /* ---------- FINANCIAL ---------- */
+  function renderFinancial(){
+    const { goal, expenses } = state.financial;
+    const totalPlanned = expenses.reduce((s,e)=> s + toSgd(e.planned, e.currency), 0);
+    const totalActual = expenses.reduce((s,e)=> s + toSgd(e.actual, e.currency), 0);
+    const goalSgd = goal.amount ? toSgd(goal.amount, goal.currency) : null;
+
+    document.getElementById('statPlanned').textContent = fmtSgd(totalPlanned);
+    document.getElementById('statActual').textContent = fmtSgd(totalActual);
+    document.getElementById('statGoal').textContent = goalSgd !== null ? fmtSgd(goalSgd) : '—';
+    document.getElementById('statRemaining').textContent = goalSgd !== null ? fmtSgd(goalSgd - totalActual) : '—';
+
+    const rows = document.getElementById('expenseRows');
+    if (!expenses.length){
+      rows.innerHTML = '<tr class="empty-row"><td colspan="5">No expenses logged yet — add your first one above.</td></tr>';
+    } else {
+      rows.innerHTML = expenses.map(e => `
+        <tr>
+          <td>${escapeHtml(e.category)}</td>
+          <td>${escapeHtml(e.item)}</td>
+          <td>${e.currency === 'MYR' ? 'RM' : 'S$'} ${Number(e.planned||0).toLocaleString()}</td>
+          <td>${e.currency === 'MYR' ? 'RM' : 'S$'} ${Number(e.actual||0).toLocaleString()}</td>
+          <td><button class="btn-danger-text" data-remove-expense="${e.id}">Remove</button></td>
+        </tr>`).join('');
+    }
+  }
+
+  /* ---------- CONFINEMENT ---------- */
+  function renderConfinement(){
+    const { deliveryDate, duration, centers, tasks } = state.confinement;
+    if (deliveryDate){
+      const start = new Date(deliveryDate + 'T00:00:00');
+      const end = new Date(start.getTime() + Number(duration) * 86400000);
+      document.getElementById('confStart').textContent = fmtDate(deliveryDate);
+      document.getElementById('confEnd').textContent = fmtDate(end.toISOString().slice(0,10));
+    } else {
+      document.getElementById('confStart').textContent = '—';
+      document.getElementById('confEnd').textContent = '—';
+    }
+
+    const pillClass = { Considering: 'pill-considering', Booked: 'pill-booked', Declined: 'pill-declined' };
+    const cardsEl = document.getElementById('centerCards');
+    if (!centers.length){
+      cardsEl.innerHTML = '<p style="color:var(--ink-soft); font-style:italic;">No centres added yet.</p>';
+    } else {
+      cardsEl.innerHTML = centers.map(c => {
+        const isOpen = expandedCenters.has(c.id);
+        const detailBlocks = isOpen ? [
+          renderAttachmentsBlock(c),
+          ...CENTER_FIELDS.map(f => renderDetailBlock(c, f))
+        ].join('') : '';
+        const thumbAtt = (c.attachments || []).find(a => isImageAttachment(a));
+        return `
+        <div class="center-card ${isOpen ? 'expanded' : ''}">
+          <div class="center-card-top" data-toggle-center="${c.id}">
+            <div style="display:flex; gap:12px; align-items:flex-start;">
+              ${thumbAtt ? `<img class="center-thumb" src="${escapeHtml(thumbAtt.src)}" />` : ''}
+              <div>
+                <h3><span class="chevron">\u25B8</span>${escapeHtml(c.name)}</h3>
+                <div class="meta">${escapeHtml(c.price || '')}${c.room ? ' \u00B7 ' + escapeHtml(c.room) : ''}${c.contact ? ' \u00B7 ' + escapeHtml(c.contact) : ''}</div>
+              </div>
+            </div>
+            <div class="row-actions">
+              <span class="pill ${pillClass[c.status] || 'pill-considering'}">${escapeHtml(c.status || 'Considering')}</span>
+              <button class="btn-danger-text" data-remove-center="${c.id}">Remove</button>
+            </div>
+          </div>
+          ${isOpen ? `<div class="center-detail">${detailBlocks}</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    renderCenterSummary(centers);
+
+    const taskEl = document.getElementById('taskList');
+    if (!tasks.length){
+      taskEl.innerHTML = '<p style="color:var(--ink-soft); font-style:italic;">No tasks yet.</p>';
+    } else {
+      taskEl.innerHTML = tasks.map(t => `
+        <div class="checklist-item ${t.done ? 'done' : ''}">
+          <input type="checkbox" data-toggle-task="${t.id}" ${t.done ? 'checked' : ''} />
+          <span>${escapeHtml(t.text)}</span>
+          <button class="btn-danger-text" data-remove-task="${t.id}">Remove</button>
+        </div>`).join('');
+    }
+  }
+
+  function renderCenterSummary(centers){
+    const el = document.getElementById('centerSummary');
+    if (!el) return;
+    if (!centers.length){
+      el.innerHTML = '<p style="color:var(--ink-soft); font-style:italic;">Add a centre above to see it summarised here.</p>';
+      return;
+    }
+
+    const sections = [
+      summarySection('Pricing', renderFlatFieldTable(centers, PRICING_FIELDS)),
+      summarySection('Room & facilities', renderLabeledTable(
+        buildLabeledRows(centers, 'roomFacilities', [{ label: 'Address', values: centers.map(c => c.address || '') }]),
+        centers
+      )),
+      summarySection('Mother care', renderLabeledTable(buildLabeledRows(centers, 'motherCare'), centers)),
+      summarySection('Baby care', renderLabeledTable(buildLabeledRows(centers, 'babyCare'), centers)),
+      summarySection('Perks & extras', renderBulletColumnsTable(centers, 'extras')),
+      summarySection('Contact', renderContactTable(centers))
+    ];
+    el.innerHTML = sections.join('');
+  }
+
+  function summarySection(title, tableHtml){
+    return `<div class="summary-subsection"><h3 class="summary-subheading">${escapeHtml(title)}</h3><div style="overflow-x:auto;">${tableHtml}</div></div>`;
+  }
+
+  function renderFlatFieldTable(centers, fields){
+    const header = `<tr><th></th>${centers.map(c => `<th>${escapeHtml(c.name)}</th>`).join('')}</tr>`;
+    const rows = fields.map(f => `<tr><td>${escapeHtml(f.label)}</td>${centers.map(c => `<td>${c[f.key] ? escapeHtml(c[f.key]) : '<span class="summary-empty">Not stated</span>'}</td>`).join('')}</tr>`).join('');
+    return `<table class="summary-table"><thead>${header}</thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // Parses "Label: value" bullet lines (as authored in roomFacilities/motherCare/babyCare)
+  // into a shared row structure across all centres, preserving first-seen label order.
+  function extractLabelValue(bullet){
+    const idx = String(bullet || '').indexOf(':');
+    if (idx === -1) return null;
+    const label = bullet.slice(0, idx).trim();
+    const value = bullet.slice(idx + 1).trim();
+    if (!label || label.length > 40) return null;
+    return { label, value };
+  }
+
+  function buildLabeledRows(centers, fieldKey, extraRows){
+    const labelOrder = [];
+    const dataMap = {};
+    centers.forEach((c, idx) => {
+      (c[fieldKey] || []).forEach(bullet => {
+        const parsed = extractLabelValue(bullet);
+        if (!parsed) return;
+        if (!(parsed.label in dataMap)){ dataMap[parsed.label] = new Array(centers.length).fill(''); labelOrder.push(parsed.label); }
+        dataMap[parsed.label][idx] = parsed.value;
+      });
+    });
+    (extraRows || []).forEach(({ label, values }) => {
+      if (!(label in dataMap)){ dataMap[label] = values; labelOrder.push(label); }
+    });
+    return { labelOrder, dataMap };
+  }
+
+  function renderLabeledTable({ labelOrder, dataMap }, centers){
+    if (!labelOrder.length){
+      return '<p class="summary-empty" style="padding:6px 0;">No details yet — add some in the centre card above.</p>';
+    }
+    const header = `<tr><th></th>${centers.map(c => `<th>${escapeHtml(c.name)}</th>`).join('')}</tr>`;
+    const rows = labelOrder.map(label => `<tr><td>${escapeHtml(label)}</td>${dataMap[label].map(v => `<td>${v ? escapeHtml(v) : '<span class="summary-empty">Not stated</span>'}</td>`).join('')}</tr>`).join('');
+    return `<table class="summary-table"><thead>${header}</thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderBulletColumnsTable(centers, fieldKey){
+    const header = `<tr>${centers.map(c => `<th>${escapeHtml(c.name)}</th>`).join('')}</tr>`;
+    const row = `<tr>${centers.map(c => {
+      const items = (c[fieldKey] || []).filter(x => String(x || '').trim());
+      return `<td>${items.length ? '<ul style="margin:0; padding-left:18px;">' + items.map(i => `<li>${escapeHtml(i)}</li>`).join('') + '</ul>' : '<span class="summary-empty">Not stated</span>'}</td>`;
+    }).join('')}</tr>`;
+    return `<table class="summary-table"><thead>${header}</thead><tbody>${row}</tbody></table>`;
+  }
+
+  function renderContactTable(centers){
+    const header = '<tr><th>Centre</th><th>Contact</th></tr>';
+    const rows = centers.map(c => `<tr><td>${escapeHtml(c.name)}</td><td>${c.contact ? escapeHtml(c.contact) : '<span class="summary-empty">Not stated</span>'}</td></tr>`).join('');
+    return `<table class="summary-table"><thead>${header}</thead><tbody>${rows}</tbody></table>`;
+  }
+
+  /* ---------- GYNAE ---------- */
+  function renderGynae(){
+    const { appointments, measurements, questions } = state.gynae;
+
+    const apptRows = document.getElementById('apptRows');
+    apptRows.innerHTML = appointments.length ? appointments
+      .slice().sort((a,b)=> (a.date < b.date ? 1 : -1))
+      .map(a => `
+        <tr>
+          <td>${fmtDate(a.date)}</td>
+          <td>${escapeHtml(a.doctor || '—')}</td>
+          <td>${escapeHtml(a.notes || '')}</td>
+          <td><button class="btn-danger-text" data-remove-appt="${a.id}">Remove</button></td>
+        </tr>`).join('')
+      : '<tr class="empty-row"><td colspan="4">No appointments logged yet.</td></tr>';
+
+    const measureRows = document.getElementById('measureRows');
+    measureRows.innerHTML = measurements.length ? measurements
+      .slice().sort((a,b)=> (a.date < b.date ? 1 : -1))
+      .map(m => `
+        <tr>
+          <td>${fmtDate(m.date)}</td>
+          <td>${m.weight ? m.weight + ' kg' : '—'}</td>
+          <td>${escapeHtml(m.bp || '—')}</td>
+          <td><button class="btn-danger-text" data-remove-measure="${m.id}">Remove</button></td>
+        </tr>`).join('')
+      : '<tr class="empty-row"><td colspan="4">No measurements logged yet.</td></tr>';
+
+    const qEl = document.getElementById('questionList');
+    qEl.innerHTML = questions.length ? questions.map(q => `
+        <div class="checklist-item ${q.done ? 'done' : ''}">
+          <input type="checkbox" data-toggle-question="${q.id}" ${q.done ? 'checked' : ''} />
+          <span>${escapeHtml(q.text)}</span>
+          <button class="btn-danger-text" data-remove-question="${q.id}">Remove</button>
+        </div>`).join('')
+      : '<p style="color:var(--ink-soft); font-style:italic;">No questions yet.</p>';
+  }
+
+  /* ---------- COUNTDOWN ---------- */
+  function renderCountdown(){
+    const edd = state.gynae.profile.edd;
+    const box = document.getElementById('countdownNum');
+    const lbl = document.getElementById('countdownLbl');
+    if (!edd){
+      box.textContent = '—';
+      lbl.textContent = 'Set your due date in the Gynae tab';
+      return;
+    }
+    const today = new Date(); today.setHours(0,0,0,0);
+    const eddDate = new Date(edd + 'T00:00:00');
+    const daysToEdd = Math.round((eddDate - today) / 86400000);
+
+    if (daysToEdd >= 0){
+      const weeksPregnant = Math.max(0, Math.min(40, 40 - Math.ceil(daysToEdd/7)));
+      box.textContent = daysToEdd;
+      lbl.textContent = `days to due date · ≈week ${weeksPregnant}`;
+    } else {
+      box.textContent = Math.abs(daysToEdd);
+      lbl.textContent = 'days since due date';
+    }
+  }
+
+  /* ---------- NOTEPAD ---------- */
+  function renderNotepadSidebar(){
+    const { notepads, activeId } = state.notepad;
+    const listEl = document.getElementById('notepadList');
+    if (!notepads.length){
+      listEl.innerHTML = '<p style="color:var(--ink-soft); font-style:italic; font-size:13.5px;">No notepads yet.</p>';
+      return;
+    }
+    listEl.innerHTML = notepads.map(n => `
+      <div class="notepad-item ${n.id === activeId ? 'active' : ''}" data-select-notepad="${n.id}">
+        <span class="np-title">${escapeHtml(n.title || 'Untitled notepad')}</span>
+        <button class="np-remove" data-remove-notepad="${n.id}">\u2715</button>
+      </div>`).join('');
+  }
+
+  function renderNotepadMain(){
+    const { notepads, activeId } = state.notepad;
+    const active = notepads.find(n => n.id === activeId);
+    const titleInput = document.getElementById('notepadTitleInput');
+    const contentInput = document.getElementById('notepadContentInput');
+    if (!active){
+      titleInput.value = '';
+      contentInput.value = '';
+      titleInput.disabled = true;
+      contentInput.disabled = true;
+      contentInput.placeholder = notepads.length ? 'Select a notepad' : 'Create a notepad to get started';
+      return;
+    }
+    titleInput.disabled = false;
+    contentInput.disabled = false;
+    titleInput.value = active.title;
+    contentInput.value = active.content;
+  }
+
+  function renderAll(){
+    renderFinancial();
+    renderConfinement();
+    renderGynae();
+    renderNotepadSidebar();
+    renderNotepadMain();
+    renderCountdown();
+  }
+
+  function escapeHtml(str){
+    return String(str ?? '').replace(/[&<>"']/g, s => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[s]));
+  }
+
+  function renderDetailBlock(center, field){
+    const editKey = center.id + '::' + field.key;
+    const isEditing = editingBlocks.has(editKey);
+    const value = center[field.key];
+    const hasContent = field.type === 'array'
+      ? Array.isArray(value) && value.filter(x => String(x || '').trim()).length
+      : String(value || '').trim();
+
+    if (isEditing){
+      const textValue = field.type === 'array' ? (Array.isArray(value) ? value.join('\n') : '') : (value || '');
+      return `<div class="detail-block${field.span2 ? ' span-2' : ''}">
+        <div class="detail-block-head"><h4>${escapeHtml(field.label)}</h4></div>
+        <textarea class="detail-edit-textarea" data-field-input="${editKey}" placeholder="${field.type === 'array' ? 'One item per line' : ''}">${escapeHtml(textValue)}</textarea>
+        <div class="detail-edit-actions">
+          <button class="btn-sage btn-small" data-save-field="${editKey}">Save</button>
+          <button class="btn-ghost btn-small" data-cancel-field="${editKey}">Cancel</button>
+        </div>
+      </div>`;
+    }
+
+    const body = !hasContent
+      ? `<p style="color:var(--ink-soft); font-style:italic;">Not added yet.</p>`
+      : (field.type === 'array'
+          ? `<ul>${value.filter(x => String(x||'').trim()).map(li => `<li>${escapeHtml(li)}</li>`).join('')}</ul>`
+          : `<p>${escapeHtml(value)}</p>`);
+
+    return `<div class="detail-block${field.span2 ? ' span-2' : ''}">
+      <div class="detail-block-head"><h4>${escapeHtml(field.label)}</h4><button class="link-btn" data-edit-field="${editKey}">${hasContent ? 'Edit' : 'Add'}</button></div>
+      ${body}
+    </div>`;
+  }
+
+  function isImageAttachment(att){
+    if (!att) return false;
+    if (att.mime && att.mime.startsWith('image/')) return true;
+    if (!att.mime && /^data:image\//i.test(att.src || '')) return true;
+    if (!att.mime && /\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i.test(att.src || '')) return true;
+    return false;
+  }
+  function fileIconFor(att){
+    const mime = att.mime || '';
+    if (mime.includes('pdf') || /\.pdf(\?.*)?$/i.test(att.src || '')) return '\uD83D\uDCC4';
+    return '\uD83D\uDCCE';
+  }
+
+  function renderAttachmentsBlock(center){
+    const key = center.id + '::attachments';
+    const isEditing = editingBlocks.has(key);
+    const atts = center.attachments || [];
+
+    if (isEditing){
+      const rows = atts.map(a => `
+        <div class="attachment-row-edit">
+          <span>${isImageAttachment(a) ? '\uD83D\uDDBC\uFE0F' : fileIconFor(a)} ${escapeHtml(a.name || 'File')}</span>
+          <button class="btn-danger-text" data-remove-attachment="${center.id}::${a.id}">Remove</button>
+        </div>`).join('');
+      return `<div class="detail-block span-2 image-edit-block">
+        <div class="detail-block-head"><h4>Photos &amp; documents</h4></div>
+        ${rows || '<p style="color:var(--ink-soft); font-style:italic; font-size:13.5px;">No files added yet.</p>'}
+        <div style="margin-top:10px;">
+          <label>Upload photo(s) or PDF(s)</label>
+          <input type="file" multiple accept="image/*,application/pdf" data-attachment-file-input="${center.id}" />
+        </div>
+        <div style="margin-top:10px; display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+          <div style="flex:1; min-width:160px;">
+            <label>Or paste a link</label>
+            <input type="text" data-attachment-url-input="${center.id}" placeholder="https://..." />
+          </div>
+          <button class="btn-sage btn-small" data-add-attachment-url="${center.id}">Add link</button>
+        </div>
+        <div class="detail-edit-actions">
+          <button class="btn-ghost btn-small" data-cancel-field="${key}">Done</button>
+        </div>
+      </div>`;
+    }
+
+    if (!atts.length){
+      return `<div class="detail-block span-2">
+        <div class="detail-block-head"><h4>Photos &amp; documents</h4><button class="link-btn" data-edit-field="${key}">Add</button></div>
+      </div>`;
+    }
+    const gallery = atts.map(a => isImageAttachment(a)
+      ? `<a href="${escapeHtml(a.src)}" target="_blank" rel="noopener"><img class="attachment-thumb" src="${escapeHtml(a.src)}" /></a>`
+      : `<a class="file-chip" href="${escapeHtml(a.src)}" download="${escapeHtml(a.name || 'file')}" target="_blank" rel="noopener">${fileIconFor(a)} ${escapeHtml(a.name || 'File')}</a>`
+    ).join('');
+    return `<div class="detail-block span-2">
+      <div class="detail-block-head"><h4>Photos &amp; documents</h4><button class="link-btn" data-edit-field="${key}">Manage</button></div>
+      <div class="attachment-grid">${gallery}</div>
+    </div>`;
+  }
+
+  function resizeImageFile(file, maxDim, quality){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height){ if (width > maxDim){ height = Math.round(height * (maxDim / width)); width = maxDim; } }
+          else { if (height > maxDim){ width = Math.round(width * (maxDim / height)); height = maxDim; } }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function readFileAsDataUrl(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const MAX_ATTACHMENT_CHARS = 4500000; // ~3.3MB binary, keeps each storage write safely under the 5MB key limit
+
+  async function fileToAttachment(file){
+    const isImage = file.type && file.type.startsWith('image/');
+    const src = isImage ? await resizeImageFile(file, 900, 0.75) : await readFileAsDataUrl(file);
+    if (src.length > MAX_ATTACHMENT_CHARS){
+      alert(`"${file.name}" is too large to store (even after compression). Try a smaller file, or paste a link to it instead.`);
+      return null;
+    }
+    return { id: uid(), name: file.name, mime: file.type || '', src };
+  }
+
+  /* ---------- EVENTS ---------- */
+  function bindEvents(){
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Financial
+    document.getElementById('goalAmount').addEventListener('change', e => {
+      state.financial.goal.amount = e.target.value ? Number(e.target.value) : null;
+      saveKey('financial-data', state.financial); renderFinancial();
+    });
+    document.getElementById('goalCurrency').addEventListener('change', e => {
+      state.financial.goal.currency = e.target.value;
+      saveKey('financial-data', state.financial); renderFinancial();
+    });
+    document.getElementById('addExpenseBtn').addEventListener('click', () => {
+      const item = document.getElementById('expItem').value.trim();
+      if (!item) { document.getElementById('expItem').focus(); return; }
+      state.financial.expenses.push({
+        id: uid(),
+        category: document.getElementById('expCategory').value,
+        item,
+        planned: document.getElementById('expPlanned').value || 0,
+        actual: document.getElementById('expActual').value || 0,
+        currency: document.getElementById('expCurrency').value
+      });
+      document.getElementById('expItem').value = '';
+      document.getElementById('expPlanned').value = '';
+      document.getElementById('expActual').value = '';
+      saveKey('financial-data', state.financial); renderFinancial();
+    });
+    document.getElementById('expenseRows').addEventListener('click', e => {
+      const id = e.target.dataset.removeExpense;
+      if (id){
+        state.financial.expenses = state.financial.expenses.filter(x => x.id !== id);
+        saveKey('financial-data', state.financial); renderFinancial();
+      }
+    });
+
+    // Confinement
+    document.getElementById('deliveryDate').addEventListener('change', e => {
+      state.confinement.deliveryDate = e.target.value;
+      saveConfinementData(); renderConfinement();
+    });
+    document.getElementById('confDuration').addEventListener('change', e => {
+      state.confinement.duration = Number(e.target.value);
+      saveConfinementData(); renderConfinement();
+    });
+    let pendingCenterAttachment = null;
+    document.getElementById('addCenterBtn').addEventListener('click', () => {
+      const nameInput = document.getElementById('cQuickName');
+      const name = nameInput.value.trim();
+      if (!name) { nameInput.focus(); return; }
+      const newCenter = {
+        id: uid(), name,
+        price: '', room: '', contact: '', address: '', status: 'Considering', notes: '',
+        pricingDetail: '', packagePrice: '', totalInclSst: '', totalSgd: '', deposit: '', balanceDay1: '',
+        roomFacilities: [], motherCare: [], babyCare: [], extras: [],
+        attachments: []
+      };
+      state.confinement.centers.push(newCenter);
+      expandedCenters.add(newCenter.id);
+      nameInput.value = '';
+      saveConfinementData(); renderConfinement();
+    });
+    document.getElementById('cQuickName').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('addCenterBtn').click();
+    });
+    document.getElementById('centerCards').addEventListener('click', e => {
+      const removeId = e.target.dataset.removeCenter;
+      if (removeId){
+        state.confinement.centers = state.confinement.centers.filter(x => x.id !== removeId);
+        expandedCenters.delete(removeId);
+        deleteKey('center-attachments:' + removeId);
+        saveConfinementData(); renderConfinement();
+        return;
+      }
+
+      const editKey = e.target.dataset.editField;
+      if (editKey){
+        editingBlocks.add(editKey);
+        renderConfinement();
+        return;
+      }
+      const cancelKey = e.target.dataset.cancelField;
+      if (cancelKey){
+        editingBlocks.delete(cancelKey);
+        renderConfinement();
+        return;
+      }
+      const saveFieldKey = e.target.dataset.saveField;
+      if (saveFieldKey){
+        const [centerId, fieldKey] = saveFieldKey.split('::');
+        const center = state.confinement.centers.find(x => x.id === centerId);
+        const fieldDef = CENTER_FIELDS.find(f => f.key === fieldKey);
+        const textarea = document.querySelector(`[data-field-input="${saveFieldKey}"]`);
+        if (center && fieldDef && textarea){
+          const raw = textarea.value;
+          center[fieldKey] = fieldDef.type === 'array'
+            ? raw.split('\n').map(s => s.trim()).filter(Boolean)
+            : raw.trim();
+        }
+        editingBlocks.delete(saveFieldKey);
+        saveConfinementData(); renderConfinement();
+        return;
+      }
+      const removeAttachmentKey = e.target.dataset.removeAttachment;
+      if (removeAttachmentKey){
+        const [centerId, attId] = removeAttachmentKey.split('::');
+        const center = state.confinement.centers.find(x => x.id === centerId);
+        if (center){
+          center.attachments = (center.attachments || []).filter(a => a.id !== attId);
+          saveCenterAttachments(centerId, center.attachments);
+          renderConfinement();
+        }
+        return;
+      }
+      const addAttachmentUrlId = e.target.dataset.addAttachmentUrl;
+      if (addAttachmentUrlId){
+        const urlInput = document.querySelector(`[data-attachment-url-input="${addAttachmentUrlId}"]`);
+        const center = state.confinement.centers.find(x => x.id === addAttachmentUrlId);
+        const url = urlInput ? urlInput.value.trim() : '';
+        if (center && url){
+          center.attachments = center.attachments || [];
+          center.attachments.push({ id: uid(), name: url.split('/').pop().split('?')[0] || 'Link', mime: '', src: url });
+          saveCenterAttachments(center.id, center.attachments);
+          urlInput.value = '';
+          renderConfinement();
+        }
+        return;
+      }
+
+      const toggleEl = e.target.closest('[data-toggle-center]');
+      if (toggleEl){
+        const id = toggleEl.dataset.toggleCenter;
+        if (expandedCenters.has(id)) expandedCenters.delete(id); else expandedCenters.add(id);
+        renderConfinement();
+      }
+    });
+    document.getElementById('centerCards').addEventListener('change', async e => {
+      const fileCenterId = e.target.dataset.attachmentFileInput;
+      if (!fileCenterId) return;
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      const center = state.confinement.centers.find(x => x.id === fileCenterId);
+      if (!center) return;
+      center.attachments = center.attachments || [];
+      for (const file of files){
+        const att = await fileToAttachment(file);
+        if (att) center.attachments.push(att);
+      }
+      saveCenterAttachments(center.id, center.attachments);
+      renderConfinement();
+    });
+    document.getElementById('importCentersBtn').addEventListener('click', () => {
+      const raw = document.getElementById('importCentersInput').value.trim();
+      const statusEl = document.getElementById('importStatus');
+      if (!raw){
+        statusEl.textContent = 'Paste some JSON first.';
+        statusEl.style.color = 'var(--danger)';
+        return;
+      }
+      try {
+        let parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) parsed = [parsed];
+        const added = parsed.map(c => {
+          const attachments = Array.isArray(c.attachments) ? c.attachments.map(a => ({ id: uid(), name: a.name || 'File', mime: a.mime || '', src: a.src || a.url || '' })).filter(a => a.src)
+            : (c.image ? [{ id: uid(), name: 'Image', mime: '', src: c.image }] : []);
+          return {
+            id: uid(),
+            name: c.name || 'Untitled centre',
+            price: c.price || '',
+            room: c.room || '',
+            contact: c.contact || '',
+            address: c.address || '',
+            status: c.status || 'Considering',
+            notes: c.notes || '',
+            pricingDetail: c.pricingDetail || '',
+            roomFacilities: c.roomFacilities || [],
+            motherCare: c.motherCare || [],
+            babyCare: c.babyCare || [],
+            extras: c.extras || [],
+            packagePrice: c.packagePrice || '',
+            totalInclSst: c.totalInclSst || '',
+            totalSgd: c.totalSgd || '',
+            deposit: c.deposit || '',
+            balanceDay1: c.balanceDay1 || '',
+            attachments
+          };
+        });
+        state.confinement.centers.push(...added);
+        added.forEach(c => { if (c.attachments.length) saveCenterAttachments(c.id, c.attachments); });
+        saveConfinementData();
+        renderConfinement();
+        document.getElementById('importCentersInput').value = '';
+        statusEl.textContent = `Imported ${added.length} centre${added.length > 1 ? 's' : ''}.`;
+        statusEl.style.color = 'var(--sage)';
+      } catch (err){
+        statusEl.textContent = 'Could not parse that JSON — check the format and try again.';
+        statusEl.style.color = 'var(--danger)';
+      }
+    });
+    document.getElementById('exportCentersBtn').addEventListener('click', () => {
+      const json = JSON.stringify(state.confinement.centers.map(({id, ...rest}) => rest), null, 2);
+      const statusEl = document.getElementById('importStatus');
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(json).then(() => {
+          statusEl.textContent = 'Copied current list to clipboard.';
+          statusEl.style.color = 'var(--sage)';
+        }).catch(() => {
+          document.getElementById('importCentersInput').value = json;
+          statusEl.textContent = 'Clipboard unavailable — pasted JSON into the box above instead.';
+          statusEl.style.color = 'var(--ink-soft)';
+        });
+      } else {
+        document.getElementById('importCentersInput').value = json;
+        statusEl.textContent = 'Clipboard unavailable — pasted JSON into the box above instead.';
+        statusEl.style.color = 'var(--ink-soft)';
+      }
+    });
+    document.getElementById('addTaskBtn').addEventListener('click', () => {
+      const input = document.getElementById('newTaskInput');
+      const text = input.value.trim();
+      if (!text) return;
+      state.confinement.tasks.push({ id: uid(), text, done: false });
+      input.value = '';
+      saveConfinementData(); renderConfinement();
+    });
+    document.getElementById('newTaskInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('addTaskBtn').click();
+    });
+    document.getElementById('taskList').addEventListener('click', e => {
+      const toggleId = e.target.dataset.toggleTask;
+      const removeId = e.target.dataset.removeTask;
+      if (toggleId){
+        const t = state.confinement.tasks.find(x => x.id === toggleId);
+        if (t) t.done = !t.done;
+        saveConfinementData(); renderConfinement();
+      }
+      if (removeId){
+        state.confinement.tasks = state.confinement.tasks.filter(x => x.id !== removeId);
+        saveConfinementData(); renderConfinement();
+      }
+    });
+
+    // Gynae profile
+    const profileFields = { gEdd: 'edd', gClinic: 'clinic', gBlood: 'bloodType', gAllergies: 'allergies', gMeds: 'medications' };
+    Object.entries(profileFields).forEach(([elId, key]) => {
+      document.getElementById(elId).addEventListener('change', e => {
+        state.gynae.profile[key] = e.target.value;
+        saveKey('gynae-data', state.gynae);
+        if (key === 'edd') renderCountdown();
+      });
+    });
+
+    document.getElementById('addApptBtn').addEventListener('click', () => {
+      const date = document.getElementById('apptDate').value;
+      if (!date) { document.getElementById('apptDate').focus(); return; }
+      state.gynae.appointments.push({
+        id: uid(), date,
+        doctor: document.getElementById('apptDoctor').value.trim(),
+        notes: document.getElementById('apptNotes').value.trim()
+      });
+      document.getElementById('apptDate').value = '';
+      document.getElementById('apptDoctor').value = '';
+      document.getElementById('apptNotes').value = '';
+      saveKey('gynae-data', state.gynae); renderGynae();
+    });
+    document.getElementById('apptRows').addEventListener('click', e => {
+      const id = e.target.dataset.removeAppt;
+      if (id){
+        state.gynae.appointments = state.gynae.appointments.filter(x => x.id !== id);
+        saveKey('gynae-data', state.gynae); renderGynae();
+      }
+    });
+
+    document.getElementById('addMeasureBtn').addEventListener('click', () => {
+      const date = document.getElementById('mDate').value;
+      if (!date) { document.getElementById('mDate').focus(); return; }
+      state.gynae.measurements.push({
+        id: uid(), date,
+        weight: document.getElementById('mWeight').value,
+        bp: document.getElementById('mBp').value.trim(),
+        notes: document.getElementById('mNotes').value.trim()
+      });
+      document.getElementById('mDate').value = '';
+      document.getElementById('mWeight').value = '';
+      document.getElementById('mBp').value = '';
+      document.getElementById('mNotes').value = '';
+      saveKey('gynae-data', state.gynae); renderGynae();
+    });
+    document.getElementById('measureRows').addEventListener('click', e => {
+      const id = e.target.dataset.removeMeasure;
+      if (id){
+        state.gynae.measurements = state.gynae.measurements.filter(x => x.id !== id);
+        saveKey('gynae-data', state.gynae); renderGynae();
+      }
+    });
+
+    document.getElementById('addQuestionBtn').addEventListener('click', () => {
+      const input = document.getElementById('newQuestionInput');
+      const text = input.value.trim();
+      if (!text) return;
+      state.gynae.questions.push({ id: uid(), text, done: false });
+      input.value = '';
+      saveKey('gynae-data', state.gynae); renderGynae();
+    });
+    document.getElementById('newQuestionInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('addQuestionBtn').click();
+    });
+    document.getElementById('questionList').addEventListener('click', e => {
+      const toggleId = e.target.dataset.toggleQuestion;
+      const removeId = e.target.dataset.removeQuestion;
+      if (toggleId){
+        const q = state.gynae.questions.find(x => x.id === toggleId);
+        if (q) q.done = !q.done;
+        saveKey('gynae-data', state.gynae); renderGynae();
+      }
+      if (removeId){
+        state.gynae.questions = state.gynae.questions.filter(x => x.id !== removeId);
+        saveKey('gynae-data', state.gynae); renderGynae();
+      }
+    });
+
+    // Notepad
+    const saveNotepad = debounce(() => saveKey('notepad-data', state.notepad), 500);
+
+    document.getElementById('addNotepadBtn').addEventListener('click', () => {
+      const n = { id: uid(), title: 'Untitled notepad', content: '', updatedAt: Date.now() };
+      state.notepad.notepads.unshift(n);
+      state.notepad.activeId = n.id;
+      saveKey('notepad-data', state.notepad);
+      renderNotepadSidebar();
+      renderNotepadMain();
+      const titleInput = document.getElementById('notepadTitleInput');
+      titleInput.focus();
+      titleInput.select();
+    });
+
+    document.getElementById('notepadList').addEventListener('click', e => {
+      const removeId = e.target.dataset.removeNotepad;
+      if (removeId){
+        state.notepad.notepads = state.notepad.notepads.filter(x => x.id !== removeId);
+        if (state.notepad.activeId === removeId){
+          state.notepad.activeId = state.notepad.notepads.length ? state.notepad.notepads[0].id : null;
+        }
+        saveKey('notepad-data', state.notepad);
+        renderNotepadSidebar();
+        renderNotepadMain();
+        return;
+      }
+      const row = e.target.closest('[data-select-notepad]');
+      if (row){
+        state.notepad.activeId = row.dataset.selectNotepad;
+        saveKey('notepad-data', state.notepad);
+        renderNotepadSidebar();
+        renderNotepadMain();
+      }
+    });
+
+    document.getElementById('notepadTitleInput').addEventListener('input', e => {
+      const active = state.notepad.notepads.find(n => n.id === state.notepad.activeId);
+      if (!active) return;
+      active.title = e.target.value;
+      active.updatedAt = Date.now();
+      saveNotepad();
+    });
+    document.getElementById('notepadTitleInput').addEventListener('blur', () => renderNotepadSidebar());
+    document.getElementById('notepadTitleInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') e.target.blur();
+    });
+
+    document.getElementById('notepadContentInput').addEventListener('input', e => {
+      const active = state.notepad.notepads.find(n => n.id === state.notepad.activeId);
+      if (!active) return;
+      active.content = e.target.value;
+      active.updatedAt = Date.now();
+      saveNotepad();
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
