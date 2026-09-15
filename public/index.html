@@ -22,6 +22,8 @@
     --plum-soft: #EAE0EC;
     --steel: #3F6A82;
     --steel-soft: #DCE8ED;
+    --wine: #8C4A45;
+    --wine-soft: #F1E0DE;
     --danger: #B24A3C;
   }
 
@@ -75,6 +77,7 @@
   .tab-btn[data-tab="confinement"].active{ border-color: var(--sage); }
   .tab-btn[data-tab="gynae"].active{ border-color: var(--plum); }
   .tab-btn[data-tab="notepad"].active{ border-color: var(--steel); }
+  .tab-btn[data-tab="checklist"].active{ border-color: var(--wine); }
 
   .tab-panel{ display:none; }
   .tab-panel.active{ display:block; animation: fadein .18s ease; }
@@ -93,6 +96,7 @@
   .section.accent-sage{ border-left-color: var(--sage); }
   .section.accent-plum{ border-left-color: var(--plum); }
   .section.accent-steel{ border-left-color: var(--steel); }
+  .section.accent-wine{ border-left-color: var(--wine); }
 
   .section h2{ font-size: 21px; margin-bottom: 4px; }
   .section .sub{ color: var(--ink-soft); font-size: 14.5px; margin-bottom: 16px; }
@@ -129,6 +133,7 @@
   .btn-sage{ background: var(--sage); color: #fff; }
   .btn-plum{ background: var(--plum); color: #fff; }
   .btn-steel{ background: var(--steel); color: #fff; }
+  .btn-wine{ background: var(--wine); color: #fff; }
   .btn-ghost{ background: transparent; color: var(--ink-soft); border: 1px solid var(--line); }
   .btn-danger-text{ background:none; color: var(--danger); padding: 4px 8px; font-size: 13.5px; }
 
@@ -232,6 +237,16 @@
   #notepadTitleInput:focus{ outline: none; border-bottom-color: var(--steel); }
   #notepadContentInput{ min-height: 420px; font-size: 15.5px; line-height: 1.65; }
   .notepad-empty{ color: var(--ink-soft); font-style: italic; padding: 30px 0; text-align:center; }
+
+  /* CHECKLIST TAB */
+  .checklist-row-bought td{ color: var(--ink-soft); }
+  .checklist-row-bought td.item-desc{ text-decoration: line-through; }
+  .checklist-item-check{ width: auto; accent-color: var(--wine); }
+  #checklistTitleInput{
+    font-family: 'Fraunces', serif; font-size: 22px; border: none; border-bottom: 1px solid var(--line);
+    border-radius: 0; padding: 6px 2px; margin-bottom: 14px; background: transparent;
+  }
+  #checklistTitleInput:focus{ outline: none; border-bottom-color: var(--wine); }
 </style>
 </head>
 <body>
@@ -262,6 +277,7 @@
     <button class="tab-btn" data-tab="confinement">Confinement Management</button>
     <button class="tab-btn" data-tab="gynae">Gynaecology Info</button>
     <button class="tab-btn" data-tab="notepad">Notepad</button>
+    <button class="tab-btn" data-tab="checklist">Checklist</button>
   </div>
 
   <div class="save-note" id="saveNote">&nbsp;</div>
@@ -498,6 +514,42 @@
     </div>
   </div>
 
+  <!-- CHECKLIST TAB -->
+  <div class="tab-panel" id="tab-checklist">
+    <div class="section accent-wine">
+      <h2>Checklist</h2>
+      <div class="sub">Keep separate shopping checklists — one per topic (e.g. hospital bag, nursery, confinement supplies).</div>
+      <div class="notepad-grid">
+        <div class="notepad-sidebar">
+          <div id="checklistList"></div>
+          <button class="btn-wine" id="addChecklistBtn" style="width:100%; margin-top:8px;">+ New checklist</button>
+        </div>
+        <div class="notepad-main">
+          <input type="text" id="checklistTitleInput" placeholder="Untitled checklist" />
+
+          <div class="stat-row" id="checklistStats"></div>
+
+          <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr;">
+            <div><label for="itemDesc">Item</label><input type="text" id="itemDesc" placeholder="e.g. Newborn diapers" /></div>
+            <div><label for="itemQty">Quantity</label><input type="number" id="itemQty" min="0" placeholder="1" /></div>
+            <div><label for="itemUnit">Unit</label><input type="text" id="itemUnit" placeholder="e.g. pack" /></div>
+            <div><label for="itemCost">Cost</label><input type="number" id="itemCost" min="0" step="0.01" placeholder="0.00" /></div>
+          </div>
+          <div style="margin-bottom:10px;">
+            <label for="itemComment">Comment</label>
+            <input type="text" id="itemComment" placeholder="Optional — brand, where to buy, etc." />
+          </div>
+          <button class="btn-wine" id="addItemBtn">Add item</button>
+
+          <table>
+            <thead><tr><th></th><th>Item</th><th>Qty</th><th>Unit</th><th>Cost</th><th>Comment</th><th></th></tr></thead>
+            <tbody id="checklistItemRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -528,6 +580,10 @@
     },
     notepad: {
       notepads: [],
+      activeId: null
+    },
+    checklist: {
+      lists: [],
       activeId: null
     }
   };
@@ -684,6 +740,7 @@
     state.confinement = await loadKey('confinement-data', defaultState.confinement);
     state.gynae = await loadKey('gynae-data', defaultState.gynae);
     state.notepad = await loadKey('notepad-data', defaultState.notepad);
+    state.checklist = await loadKey('checklist-data', defaultState.checklist);
 
     // Load each centre's attachments from their own storage key
     for (const c of state.confinement.centers){
@@ -1040,12 +1097,98 @@
     contentInput.value = active.content;
   }
 
+  /* ---------- CHECKLIST ---------- */
+  function renderChecklistSidebar(){
+    const { lists, activeId } = state.checklist;
+    const listEl = document.getElementById('checklistList');
+    if (!lists.length){
+      listEl.innerHTML = '<p style="color:var(--ink-soft); font-style:italic; font-size:13.5px;">No checklists yet.</p>';
+      return;
+    }
+    listEl.innerHTML = lists.map(l => `
+      <div class="notepad-item ${l.id === activeId ? 'active' : ''}" data-select-checklist="${l.id}">
+        <span class="np-title">${escapeHtml(l.title || 'Untitled checklist')}</span>
+        <button class="np-remove" data-remove-checklist="${l.id}">\u2715</button>
+      </div>`).join('');
+  }
+
+  function renderChecklistMain(){
+    const { lists, activeId } = state.checklist;
+    const active = lists.find(l => l.id === activeId);
+    const titleInput = document.getElementById('checklistTitleInput');
+    const statsEl = document.getElementById('checklistStats');
+    const rowsEl = document.getElementById('checklistItemRows');
+    const formInputs = ['itemDesc', 'itemQty', 'itemUnit', 'itemCost', 'itemComment', 'addItemBtn'];
+
+    if (!active){
+      titleInput.value = '';
+      titleInput.disabled = true;
+      formInputs.forEach(id => document.getElementById(id).disabled = true);
+      statsEl.innerHTML = '';
+      rowsEl.innerHTML = `<tr class="empty-row"><td colspan="7">${lists.length ? 'Select a checklist' : 'Create a checklist to get started'}</td></tr>`;
+      return;
+    }
+    titleInput.disabled = false;
+    formInputs.forEach(id => document.getElementById(id).disabled = false);
+    titleInput.value = active.title;
+
+    const items = active.items || [];
+    const totalCost = items.reduce((s, i) => s + (Number(i.cost) || 0), 0);
+    const remainingCost = items.filter(i => !i.bought).reduce((s, i) => s + (Number(i.cost) || 0), 0);
+    const boughtCount = items.filter(i => i.bought).length;
+    statsEl.innerHTML = `
+      <div class="stat"><div class="n">${boughtCount} / ${items.length}</div><div class="l">Items bought</div></div>
+      <div class="stat"><div class="n">${totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div><div class="l">Total cost</div></div>
+      <div class="stat"><div class="n">${remainingCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div><div class="l">Remaining to buy</div></div>
+    `;
+
+    if (!items.length){
+      rowsEl.innerHTML = '<tr class="empty-row"><td colspan="7">No items yet — add your first one above.</td></tr>';
+      return;
+    }
+    rowsEl.innerHTML = items.map(i => {
+      const editKey = 'item::' + i.id;
+      if (editingBlocks.has(editKey)){
+        return `
+        <tr>
+          <td></td>
+          <td><input type="text" data-item-input="desc" data-item-id="${i.id}" value="${escapeHtml(i.description || '')}" /></td>
+          <td><input type="number" min="0" data-item-input="qty" data-item-id="${i.id}" value="${escapeHtml(i.qty ?? '')}" style="width:70px;" /></td>
+          <td><input type="text" data-item-input="unit" data-item-id="${i.id}" value="${escapeHtml(i.unit || '')}" style="width:80px;" /></td>
+          <td><input type="number" min="0" step="0.01" data-item-input="cost" data-item-id="${i.id}" value="${escapeHtml(i.cost ?? '')}" style="width:90px;" /></td>
+          <td><input type="text" data-item-input="comment" data-item-id="${i.id}" value="${escapeHtml(i.comment || '')}" /></td>
+          <td>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <button class="btn-wine btn-small" data-save-item="${i.id}">Save</button>
+              <button class="btn-ghost btn-small" data-cancel-item="${i.id}">Cancel</button>
+            </div>
+          </td>
+        </tr>`;
+      }
+      return `
+      <tr class="${i.bought ? 'checklist-row-bought' : ''}">
+        <td><input type="checkbox" class="checklist-item-check" data-toggle-item="${i.id}" ${i.bought ? 'checked' : ''} /></td>
+        <td class="item-desc">${escapeHtml(i.description || '')}</td>
+        <td>${i.qty !== '' && i.qty != null ? escapeHtml(String(i.qty)) : '—'}</td>
+        <td>${escapeHtml(i.unit || '—')}</td>
+        <td>${i.cost !== '' && i.cost != null ? Number(i.cost).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}</td>
+        <td>${escapeHtml(i.comment || '—')}</td>
+        <td>
+          <button class="link-btn" data-edit-item="${i.id}">Edit</button>
+          <button class="btn-danger-text" data-remove-item="${i.id}">Remove</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
   function renderAll(){
     renderFinancial();
     renderConfinement();
     renderGynae();
     renderNotepadSidebar();
     renderNotepadMain();
+    renderChecklistSidebar();
+    renderChecklistMain();
     renderCountdown();
   }
 
@@ -1643,6 +1786,136 @@
       active.content = e.target.value;
       active.updatedAt = Date.now();
       saveNotepad();
+    });
+
+    // Checklist
+    const saveChecklist = debounce(() => saveKey('checklist-data', state.checklist), 500);
+
+    document.getElementById('addChecklistBtn').addEventListener('click', () => {
+      const l = { id: uid(), title: 'Untitled checklist', items: [] };
+      state.checklist.lists.unshift(l);
+      state.checklist.activeId = l.id;
+      saveKey('checklist-data', state.checklist);
+      renderChecklistSidebar();
+      renderChecklistMain();
+      const titleInput = document.getElementById('checklistTitleInput');
+      titleInput.focus();
+      titleInput.select();
+    });
+
+    document.getElementById('checklistList').addEventListener('click', e => {
+      const removeId = e.target.dataset.removeChecklist;
+      if (removeId){
+        state.checklist.lists = state.checklist.lists.filter(x => x.id !== removeId);
+        if (state.checklist.activeId === removeId){
+          state.checklist.activeId = state.checklist.lists.length ? state.checklist.lists[0].id : null;
+        }
+        saveKey('checklist-data', state.checklist);
+        renderChecklistSidebar();
+        renderChecklistMain();
+        return;
+      }
+      const row = e.target.closest('[data-select-checklist]');
+      if (row){
+        state.checklist.activeId = row.dataset.selectChecklist;
+        saveKey('checklist-data', state.checklist);
+        renderChecklistSidebar();
+        renderChecklistMain();
+      }
+    });
+
+    document.getElementById('checklistTitleInput').addEventListener('input', e => {
+      const active = state.checklist.lists.find(l => l.id === state.checklist.activeId);
+      if (!active) return;
+      active.title = e.target.value;
+      saveChecklist();
+    });
+    document.getElementById('checklistTitleInput').addEventListener('blur', () => renderChecklistSidebar());
+    document.getElementById('checklistTitleInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') e.target.blur();
+    });
+
+    document.getElementById('addItemBtn').addEventListener('click', () => {
+      const active = state.checklist.lists.find(l => l.id === state.checklist.activeId);
+      if (!active) return;
+      const descInput = document.getElementById('itemDesc');
+      const desc = descInput.value.trim();
+      if (!desc) { descInput.focus(); return; }
+      active.items = active.items || [];
+      active.items.push({
+        id: uid(),
+        description: desc,
+        qty: document.getElementById('itemQty').value,
+        unit: document.getElementById('itemUnit').value.trim(),
+        cost: document.getElementById('itemCost').value,
+        comment: document.getElementById('itemComment').value.trim(),
+        bought: false
+      });
+      descInput.value = '';
+      document.getElementById('itemQty').value = '';
+      document.getElementById('itemUnit').value = '';
+      document.getElementById('itemCost').value = '';
+      document.getElementById('itemComment').value = '';
+      saveKey('checklist-data', state.checklist);
+      renderChecklistMain();
+    });
+    document.getElementById('itemDesc').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('addItemBtn').click();
+    });
+
+    document.getElementById('checklistItemRows').addEventListener('click', e => {
+      const active = state.checklist.lists.find(l => l.id === state.checklist.activeId);
+      if (!active) return;
+
+      const removeId = e.target.dataset.removeItem;
+      if (removeId){
+        active.items = active.items.filter(x => x.id !== removeId);
+        saveKey('checklist-data', state.checklist);
+        renderChecklistMain();
+        return;
+      }
+      const editId = e.target.dataset.editItem;
+      if (editId){
+        editingBlocks.add('item::' + editId);
+        renderChecklistMain();
+        return;
+      }
+      const cancelId = e.target.dataset.cancelItem;
+      if (cancelId){
+        editingBlocks.delete('item::' + cancelId);
+        renderChecklistMain();
+        return;
+      }
+      const saveId = e.target.dataset.saveItem;
+      if (saveId){
+        const item = active.items.find(x => x.id === saveId);
+        if (item){
+          const descInput = document.querySelector(`[data-item-id="${saveId}"][data-item-input="desc"]`);
+          const qtyInput = document.querySelector(`[data-item-id="${saveId}"][data-item-input="qty"]`);
+          const unitInput = document.querySelector(`[data-item-id="${saveId}"][data-item-input="unit"]`);
+          const costInput = document.querySelector(`[data-item-id="${saveId}"][data-item-input="cost"]`);
+          const commentInput = document.querySelector(`[data-item-id="${saveId}"][data-item-input="comment"]`);
+          if (descInput) item.description = descInput.value.trim();
+          if (qtyInput) item.qty = qtyInput.value;
+          if (unitInput) item.unit = unitInput.value.trim();
+          if (costInput) item.cost = costInput.value;
+          if (commentInput) item.comment = commentInput.value.trim();
+        }
+        editingBlocks.delete('item::' + saveId);
+        saveKey('checklist-data', state.checklist);
+        renderChecklistMain();
+        return;
+      }
+    });
+    document.getElementById('checklistItemRows').addEventListener('change', e => {
+      const toggleId = e.target.dataset.toggleItem;
+      if (toggleId){
+        const active = state.checklist.lists.find(l => l.id === state.checklist.activeId);
+        const item = active && active.items.find(x => x.id === toggleId);
+        if (item) item.bought = e.target.checked;
+        saveKey('checklist-data', state.checklist);
+        renderChecklistMain();
+      }
     });
   }
 
