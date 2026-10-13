@@ -139,6 +139,9 @@
 
   /* TABLES / LISTS */
   table{ width:100%; border-collapse: collapse; margin-top: 6px; }
+  th.sortable{ cursor:pointer; user-select:none; white-space:nowrap; }
+  th.sortable:hover{ color: var(--ink); }
+  th.sortable .arr{ font-size:10px; margin-left:3px; }
   th{ text-align:left; font-size: 12.5px; text-transform: none; color: var(--ink-soft); font-weight:600; padding: 7px 8px; border-bottom: 1px solid var(--line); }
   td{ padding: 10px 8px; border-bottom: 1px solid var(--line); font-size: 15px; vertical-align: top; }
   tr:last-child td{ border-bottom: none; }
@@ -542,7 +545,7 @@
           <button class="btn-wine" id="addItemBtn">Add item</button>
 
           <table>
-            <thead><tr><th></th><th>Item</th><th>Qty</th><th>Unit</th><th>Cost</th><th>Comment</th><th></th></tr></thead>
+            <thead id="checklistHead"><tr><th class="sortable" data-sort-key="bought" title="Sort by bought">✓</th><th class="sortable" data-sort-key="description">Item</th><th class="sortable" data-sort-key="qty">Qty</th><th class="sortable" data-sort-key="unit">Unit</th><th class="sortable" data-sort-key="cost">Cost</th><th class="sortable" data-sort-key="comment">Comment</th><th></th></tr></thead>
             <tbody id="checklistItemRows"></tbody>
           </table>
         </div>
@@ -591,6 +594,7 @@
   let state = JSON.parse(JSON.stringify(defaultState));
   const expandedCenters = new Set();
   const editingBlocks = new Set();
+  let checklistSort = { key: null, dir: 1 }; // view-only; stored order untouched
   const CENTER_FIELDS = [
     { key: 'address', label: 'Address', type: 'string' },
     { key: 'pricingDetail', label: 'Pricing notes', type: 'string' },
@@ -1146,7 +1150,24 @@
       rowsEl.innerHTML = '<tr class="empty-row"><td colspan="7">No items yet — add your first one above.</td></tr>';
       return;
     }
-    rowsEl.innerHTML = items.map(i => {
+    document.querySelectorAll('#checklistHead th.sortable').forEach(th => {
+      const on = th.dataset.sortKey === checklistSort.key;
+      th.querySelector('.arr')?.remove();
+      if (on) th.insertAdjacentHTML('beforeend', `<span class="arr">${checklistSort.dir === 1 ? '▲' : '▼'}</span>`);
+    });
+    const sorted = [...items];
+    if (checklistSort.key){
+      const k = checklistSort.key, d = checklistSort.dir;
+      const num = k === 'qty' || k === 'cost';
+      sorted.sort((a, b) => {
+        let x = a[k], y = b[k];
+        if (k === 'bought'){ x = x ? 1 : 0; y = y ? 1 : 0; }
+        else if (num){ x = Number(x) || 0; y = Number(y) || 0; }
+        else { x = String(x || '').toLowerCase(); y = String(y || '').toLowerCase(); }
+        if (x < y) return -d; if (x > y) return d; return 0;
+      });
+    }
+    rowsEl.innerHTML = sorted.map(i => {
       const editKey = 'item::' + i.id;
       if (editingBlocks.has(editKey)){
         return `
@@ -1861,6 +1882,16 @@
     });
     document.getElementById('itemDesc').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('addItemBtn').click();
+    });
+
+    document.getElementById('checklistHead').addEventListener('click', e => {
+      const th = e.target.closest('th[data-sort-key]');
+      if (!th) return;
+      const k = th.dataset.sortKey;
+      if (checklistSort.key !== k) checklistSort = { key: k, dir: 1 };
+      else if (checklistSort.dir === 1) checklistSort.dir = -1;
+      else checklistSort = { key: null, dir: 1 };
+      renderChecklistMain();
     });
 
     document.getElementById('checklistItemRows').addEventListener('click', e => {
