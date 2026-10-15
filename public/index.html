@@ -532,11 +532,12 @@
 
           <div class="stat-row" id="checklistStats"></div>
 
-          <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr;">
+          <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr;">
             <div><label for="itemDesc">Item</label><input type="text" id="itemDesc" placeholder="e.g. Newborn diapers" /></div>
             <div><label for="itemQty">Quantity</label><input type="number" id="itemQty" min="0" placeholder="1" /></div>
             <div><label for="itemUnit">Unit</label><input type="text" id="itemUnit" placeholder="e.g. pack" /></div>
             <div><label for="itemCost">Cost</label><input type="number" id="itemCost" min="0" step="0.01" placeholder="0.00" /></div>
+            <div><label for="itemLocation">Where to buy</label><input type="text" id="itemLocation" placeholder="e.g. Shopee, IKEA" /></div>
           </div>
           <div style="margin-bottom:10px;">
             <label for="itemComment">Comment</label>
@@ -545,7 +546,7 @@
           <button class="btn-wine" id="addItemBtn">Add item</button>
 
           <table>
-            <thead id="checklistHead"><tr><th class="sortable" data-sort-key="bought" title="Sort by bought">✓</th><th class="sortable" data-sort-key="description">Item</th><th class="sortable" data-sort-key="qty">Qty</th><th class="sortable" data-sort-key="unit">Unit</th><th class="sortable" data-sort-key="cost">Cost</th><th class="sortable" data-sort-key="comment">Comment</th><th></th></tr></thead>
+            <thead id="checklistHead"><tr><th class="sortable" data-sort-key="bought" title="Sort by bought">✓</th><th class="sortable" data-sort-key="description">Item</th><th class="sortable" data-sort-key="qty">Qty</th><th class="sortable" data-sort-key="unit">Unit</th><th class="sortable" data-sort-key="cost">Cost</th><th class="sortable" data-sort-key="location">Where to buy</th><th class="sortable" data-sort-key="comment">Comment</th><th></th></tr></thead>
             <tbody id="checklistItemRows"></tbody>
           </table>
         </div>
@@ -1122,14 +1123,14 @@
     const titleInput = document.getElementById('checklistTitleInput');
     const statsEl = document.getElementById('checklistStats');
     const rowsEl = document.getElementById('checklistItemRows');
-    const formInputs = ['itemDesc', 'itemQty', 'itemUnit', 'itemCost', 'itemComment', 'addItemBtn'];
+    const formInputs = ['itemDesc', 'itemQty', 'itemUnit', 'itemCost', 'itemLocation', 'itemComment', 'addItemBtn'];
 
     if (!active){
       titleInput.value = '';
       titleInput.disabled = true;
       formInputs.forEach(id => document.getElementById(id).disabled = true);
       statsEl.innerHTML = '';
-      rowsEl.innerHTML = `<tr class="empty-row"><td colspan="7">${lists.length ? 'Select a checklist' : 'Create a checklist to get started'}</td></tr>`;
+      rowsEl.innerHTML = `<tr class="empty-row"><td colspan="8">${lists.length ? 'Select a checklist' : 'Create a checklist to get started'}</td></tr>`;
       return;
     }
     titleInput.disabled = false;
@@ -1147,7 +1148,7 @@
     `;
 
     if (!items.length){
-      rowsEl.innerHTML = '<tr class="empty-row"><td colspan="7">No items yet — add your first one above.</td></tr>';
+      rowsEl.innerHTML = '<tr class="empty-row"><td colspan="8">No items yet — add your first one above.</td></tr>';
       return;
     }
     document.querySelectorAll('#checklistHead th.sortable').forEach(th => {
@@ -1177,6 +1178,7 @@
           <td><input type="number" min="0" data-item-input="qty" data-item-id="${i.id}" value="${escapeHtml(i.qty ?? '')}" style="width:70px;" /></td>
           <td><input type="text" data-item-input="unit" data-item-id="${i.id}" value="${escapeHtml(i.unit || '')}" style="width:80px;" /></td>
           <td><input type="number" min="0" step="0.01" data-item-input="cost" data-item-id="${i.id}" value="${escapeHtml(i.cost ?? '')}" style="width:90px;" /></td>
+          <td><input type="text" data-item-input="location" data-item-id="${i.id}" value="${escapeHtml(i.location || '')}" /></td>
           <td><input type="text" data-item-input="comment" data-item-id="${i.id}" value="${escapeHtml(i.comment || '')}" /></td>
           <td>
             <div style="display:flex; flex-direction:column; gap:4px;">
@@ -1193,6 +1195,7 @@
         <td>${i.qty !== '' && i.qty != null ? escapeHtml(String(i.qty)) : '—'}</td>
         <td>${escapeHtml(i.unit || '—')}</td>
         <td>${i.cost !== '' && i.cost != null ? Number(i.cost).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}</td>
+        <td>${escapeHtml(i.location || '—')}</td>
         <td>${escapeHtml(i.comment || '—')}</td>
         <td>
           <button class="link-btn" data-edit-item="${i.id}">Edit</button>
@@ -1869,6 +1872,7 @@
         qty: document.getElementById('itemQty').value,
         unit: document.getElementById('itemUnit').value.trim(),
         cost: document.getElementById('itemCost').value,
+        location: document.getElementById('itemLocation').value.trim(),
         comment: document.getElementById('itemComment').value.trim(),
         bought: false
       });
@@ -1876,6 +1880,7 @@
       document.getElementById('itemQty').value = '';
       document.getElementById('itemUnit').value = '';
       document.getElementById('itemCost').value = '';
+      document.getElementById('itemLocation').value = '';
       document.getElementById('itemComment').value = '';
       saveKey('checklist-data', state.checklist);
       renderChecklistMain();
@@ -1930,6 +1935,8 @@
           if (qtyInput) item.qty = qtyInput.value;
           if (unitInput) item.unit = unitInput.value.trim();
           if (costInput) item.cost = costInput.value;
+          const locInput = document.querySelector(`[data-item-id="${saveId}"][data-item-input="location"]`);
+          if (locInput) item.location = locInput.value.trim();
           if (commentInput) item.comment = commentInput.value.trim();
         }
         editingBlocks.delete('item::' + saveId);
