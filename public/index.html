@@ -183,6 +183,10 @@
   .detail-edit-actions{ display:flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
   .btn-small{ padding: 6px 13px; font-size: 13px; }
   .image-edit-block input[type="text"]{ margin-bottom: 6px; }
+  .receipt-cell{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+  .receipt-item{ position:relative; display:inline-block; }
+  .receipt-item .attachment-thumb{ width:44px; height:44px; }
+  .receipt-x{ position:absolute; top:-6px; right:-6px; width:18px; height:18px; line-height:16px; padding:0; border-radius:50%; border:1px solid var(--line); background:var(--paper); color:var(--ink-soft); font-size:12px; cursor:pointer; }
   .attachment-grid{ display:flex; flex-wrap:wrap; gap: 10px; }
   .attachment-thumb{ width: 76px; height: 76px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
   .file-chip{ display:flex; align-items:center; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 13.5px; background: var(--cream); text-decoration: none; color: var(--ink); }
@@ -352,7 +356,7 @@
 
       <table>
         <thead>
-          <tr><th>Category</th><th>Item</th><th>Planned</th><th>Actual</th><th></th></tr>
+          <tr><th>Category</th><th>Item</th><th>Planned</th><th>Actual</th><th>Receipts</th><th></th></tr>
         </thead>
         <tbody id="expenseRows"></tbody>
       </table>
@@ -670,6 +674,14 @@
     clone.centers = clone.centers.map(({ attachments, ...rest }) => rest);
     return saveKey('confinement-data', clone);
   }
+  function saveFinancialData(){
+    const clone = JSON.parse(JSON.stringify(state.financial));
+    clone.expenses = (clone.expenses || []).map(({ attachments, ...rest }) => rest);
+    return saveKey('financial-data', clone);
+  }
+  function saveExpenseAttachments(expenseId, attachments){
+    return saveKey('expense-attachments:' + expenseId, attachments);
+  }
   function saveCenterAttachments(centerId, attachments){
     return saveKey('center-attachments:' + centerId, attachments);
   }
@@ -742,6 +754,10 @@
     await ensureSignedIn();
 
     state.financial = await loadKey('financial-data', defaultState.financial);
+    state.financial.expenses = state.financial.expenses || [];
+    await Promise.all(state.financial.expenses.map(async ex => {
+      ex.attachments = await loadKey('expense-attachments:' + ex.id, []);
+    }));
     state.confinement = await loadKey('confinement-data', defaultState.confinement);
     state.gynae = await loadKey('gynae-data', defaultState.gynae);
     state.notepad = await loadKey('notepad-data', defaultState.notepad);
@@ -788,6 +804,15 @@
   }
 
   /* ---------- FINANCIAL ---------- */
+  function renderReceiptCell(e){
+    const items = (e.attachments || []).map(a => {
+      const view = isImageAttachment(a)
+        ? `<a href="#" data-open-receipt="${e.id}::${a.id}" title="${escapeHtml(a.name || '')}"><img class="attachment-thumb" src="${escapeHtml(a.src)}" /></a>`
+        : `<a class="file-chip" href="#" data-open-receipt="${e.id}::${a.id}">${fileIconFor(a)} ${escapeHtml(a.name || 'File')}</a>`;
+      return `<span class="receipt-item">${view}<button class="receipt-x" data-remove-receipt="${e.id}::${a.id}" title="Remove">\u00D7</button></span>`;
+    }).join('');
+    return `<div class="receipt-cell">${items}<label class="link-btn" style="cursor:pointer;">+ Add<input type="file" multiple accept="image/*,application/pdf" data-receipt-input="${e.id}" hidden /></label></div>`;
+  }
   function renderFinancial(){
     const { goal, expenses } = state.financial;
     const totalPlanned = expenses.reduce((s,e)=> s + toSgd(e.planned, e.currency), 0);
@@ -801,7 +826,7 @@
 
     const rows = document.getElementById('expenseRows');
     if (!expenses.length){
-      rows.innerHTML = '<tr class="empty-row"><td colspan="5">No expenses logged yet — add your first one above.</td></tr>';
+      rows.innerHTML = '<tr class="empty-row"><td colspan="6">No expenses logged yet — add your first one above.</td></tr>';
     } else {
       rows.innerHTML = expenses.map(e => `
         <tr>
@@ -809,6 +834,7 @@
           <td>${escapeHtml(e.item)}</td>
           <td>${e.currency === 'MYR' ? 'RM' : 'S$'} ${Number(e.planned||0).toLocaleString()}</td>
           <td>${e.currency === 'MYR' ? 'RM' : 'S$'} ${Number(e.actual||0).toLocaleString()}</td>
+          <td>${renderReceiptCell(e)}</td>
           <td><button class="btn-danger-text" data-remove-expense="${e.id}">Remove</button></td>
         </tr>`).join('');
     }
@@ -1390,11 +1416,11 @@
     // Financial
     document.getElementById('goalAmount').addEventListener('change', e => {
       state.financial.goal.amount = e.target.value ? Number(e.target.value) : null;
-      saveKey('financial-data', state.financial); renderFinancial();
+      saveFinancialData(); renderFinancial();
     });
     document.getElementById('goalCurrency').addEventListener('change', e => {
       state.financial.goal.currency = e.target.value;
-      saveKey('financial-data', state.financial); renderFinancial();
+      saveFinancialData(); renderFinancial();
     });
     document.getElementById('addExpenseBtn').addEventListener('click', () => {
       const item = document.getElementById('expItem').value.trim();
@@ -1410,14 +1436,50 @@
       document.getElementById('expItem').value = '';
       document.getElementById('expPlanned').value = '';
       document.getElementById('expActual').value = '';
-      saveKey('financial-data', state.financial); renderFinancial();
+      saveFinancialData(); renderFinancial();
     });
     document.getElementById('expenseRows').addEventListener('click', e => {
       const id = e.target.dataset.removeExpense;
       if (id){
         state.financial.expenses = state.financial.expenses.filter(x => x.id !== id);
-        saveKey('financial-data', state.financial); renderFinancial();
+        deleteKey('expense-attachments:' + id);
+        saveFinancialData(); renderFinancial();
+        return;
       }
+      const openEl = e.target.closest('[data-open-receipt]');
+      if (openEl){
+        e.preventDefault();
+        const [eid, aid] = openEl.dataset.openReceipt.split('::');
+        const ex = state.financial.expenses.find(x => x.id === eid);
+        const att = ex && (ex.attachments || []).find(a => a.id === aid);
+        if (att) openAttachment(att);
+        return;
+      }
+      const rm = e.target.dataset.removeReceipt;
+      if (rm){
+        const [eid, aid] = rm.split('::');
+        const ex = state.financial.expenses.find(x => x.id === eid);
+        if (ex){
+          ex.attachments = (ex.attachments || []).filter(a => a.id !== aid);
+          saveExpenseAttachments(eid, ex.attachments);
+          renderFinancial();
+        }
+      }
+    });
+    document.getElementById('expenseRows').addEventListener('change', async e => {
+      const eid = e.target.dataset.receiptInput;
+      if (!eid) return;
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      const ex = state.financial.expenses.find(x => x.id === eid);
+      if (!ex) return;
+      ex.attachments = ex.attachments || [];
+      for (const file of files){
+        const att = await fileToAttachment(file);
+        if (att) ex.attachments.push(att);
+      }
+      saveExpenseAttachments(eid, ex.attachments);
+      renderFinancial();
     });
 
     // Confinement
