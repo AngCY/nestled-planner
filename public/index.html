@@ -509,12 +509,13 @@
         <div><label for="fGaD">+ days</label><input type="number" id="fGaD" min="0" max="6" placeholder="0" /></div>
         <div><label for="fFl">Femur length (cm)</label><input type="number" id="fFl" min="0" step="0.01" /></div>
         <div><label for="fAc">Abdominal circ. (cm)</label><input type="number" id="fAc" min="0" step="0.01" /></div>
-        <div><label for="fWeight">Est. fetal weight (g)</label><input type="number" id="fWeight" min="0" step="1" /></div>
+        <div style="grid-column: span 2;"><label for="fWeight">Est. fetal weight (g)</label><div style="display:flex; gap:6px;"><input type="number" id="fWeight" min="0" step="1" /><button type="button" class="btn-ghost btn-small" id="calcWeightBtn" title="Hadlock formula from femur length and abdominal circumference">Calculate</button></div></div>
       </div>
       <div>
         <label for="fNotes">Notes</label>
         <input type="text" id="fNotes" placeholder="Optional" />
       </div>
+      <div class="fetal-note" id="fCalcMsg" style="margin:6px 0 0;"></div>
       <button class="btn-plum" id="addFetalBtn" style="margin-top:10px;">Add scan</button>
       <div class="fetal-charts" id="fetalCharts"></div>
       <div class="fetal-note" id="fetalChartNote"></div>
@@ -1250,12 +1251,19 @@
         (missingGa ? 'Set your due date (or enter the gestation on each scan) to see the reference bands.' : '');
     }
   }
+  // Hadlock (1985) estimate from abdominal circumference and femur length, both in cm
+  function calcFetalWeight(flCm, acCm){
+    const fl = Number(flCm), ac = Number(acCm);
+    if (!(fl > 0) || !(ac > 0)) return null;
+    return Math.round(Math.pow(10, 1.304 + 0.05281 * ac + 0.1938 * fl - 0.004 * ac * fl));
+  }
   function fetalCell(f, key, unit, gaDays){
     const v = f[key];
     if (v === '' || v == null) return '\u2014';
     const pct = approxPct(key, gaDays, v);
     const shown = key === 'weight' ? Number(v).toLocaleString() : escapeHtml(String(v));
-    return `${shown} ${unit}${pct ? `<span class="pct">\u2248${escapeHtml(pct)}</span>` : ''}`;
+    const calc = key === 'weight' && f.weightCalc ? '<span class="pct">calculated</span>' : '';
+    return `${shown} ${unit}${calc}${pct ? `<span class="pct">\u2248${escapeHtml(pct)}</span>` : ''}`;
   }
   function renderFetal(){
     const fetal = state.gynae.fetal || [];
@@ -1270,7 +1278,7 @@
         <td>${inp('gaWeeks', f.gaWeeks, 'number', 56, 'min="0" max="45" placeholder="wk"')} ${inp('gaDays', f.gaDays, 'number', 48, 'min="0" max="6" placeholder="d"')}</td>
         <td>${inp('femur', f.femur, 'number', 70, 'min="0" step="0.01"')}</td>
         <td>${inp('abdomen', f.abdomen, 'number', 70, 'min="0" step="0.01"')}</td>
-        <td>${inp('weight', f.weight, 'number', 76, 'min="0"')}</td>
+        <td><div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">${inp('weight', f.weight, 'number', 76, 'min="0" data-calc="' + (f.weightCalc ? '1' : '') + '"')}<button type="button" class="btn-ghost btn-small" data-calc-fetal="${f.id}">Calculate</button></div></td>
         <td><input type="text" data-fetal-input="notes" data-fetal-id="${f.id}" value="${escapeHtml(f.notes || '')}" /></td>
         <td>
           <div style="display:flex; flex-direction:column; gap:4px;">
@@ -2031,10 +2039,29 @@
         id: uid(), date,
         gaWeeks: val('fGaW'), gaDays: val('fGaD'),
         femur: val('fFl'), abdomen: val('fAc'), weight: val('fWeight'),
+        weightCalc: !!val('fWeight') && document.getElementById('fWeight').dataset.calc === '1',
         notes: val('fNotes').trim()
       });
       ['fDate','fGaW','fGaD','fFl','fAc','fWeight','fNotes'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('fWeight').dataset.calc = '';
+      document.getElementById('fCalcMsg').textContent = '';
       saveKey('gynae-data', state.gynae); renderGynae();
+    });
+    // Typing in a weight box (add form or edit row) means it is no longer a calculated value
+    document.getElementById('fetalRows').addEventListener('input', e => {
+      if (e.target.dataset.fetalInput === 'weight') e.target.dataset.calc = '';
+    });
+    document.getElementById('fWeight').addEventListener('input', e => { e.target.dataset.calc = ''; });
+    document.getElementById('calcWeightBtn').addEventListener('click', () => {
+      const msg = document.getElementById('fCalcMsg');
+      const w = calcFetalWeight(document.getElementById('fFl').value, document.getElementById('fAc').value);
+      if (w === null){
+        msg.textContent = 'Enter both femur length and abdominal circumference (cm) to calculate the weight.';
+        document.getElementById(document.getElementById('fFl').value ? 'fAc' : 'fFl').focus();
+        return;
+      }
+      msg.textContent = 'Weight calculated with the Hadlock formula (femur length + abdominal circumference). It is an estimate only.';
+      const wi = document.getElementById('fWeight'); wi.value = w; wi.dataset.calc = '1';
     });
     document.getElementById('fetalRows').addEventListener('click', e => {
       const d = e.target.dataset;
@@ -2042,6 +2069,11 @@
         state.gynae.fetal = state.gynae.fetal.filter(x => x.id !== d.removeFetal);
         editingBlocks.delete('fetal::' + d.removeFetal);
         saveKey('gynae-data', state.gynae); renderGynae();
+      } else if (d.calcFetal){
+        const get = k => document.querySelector(`[data-fetal-id="${d.calcFetal}"][data-fetal-input="${k}"]`);
+        const w = calcFetalWeight(get('femur').value, get('abdomen').value);
+        if (w === null){ (get('femur').value ? get('abdomen') : get('femur')).focus(); return; }
+        const wi = get('weight'); wi.value = w; wi.dataset.calc = '1';
       } else if (d.editFetal){
         editingBlocks.add('fetal::' + d.editFetal); renderFetal();
       } else if (d.cancelFetal){
@@ -2055,6 +2087,7 @@
           f.date = date;
           f.gaWeeks = get('gaWeeks').value; f.gaDays = get('gaDays').value;
           f.femur = get('femur').value; f.abdomen = get('abdomen').value; f.weight = get('weight').value;
+          f.weightCalc = !!f.weight && get('weight').dataset.calc === '1';
           f.notes = get('notes').value.trim();
         }
         editingBlocks.delete('fetal::' + d.saveFetal);
