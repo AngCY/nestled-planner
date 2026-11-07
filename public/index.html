@@ -1259,7 +1259,13 @@
   }
   function fetalCell(f, key, unit, gaDays){
     const v = f[key];
-    if (v === '' || v == null) return '\u2014';
+    if (v === '' || v == null){
+      // No weight recorded yet: offer to calculate it from the saved femur length and abdominal circumference
+      if (key === 'weight' && calcFetalWeight(f.femur, f.abdomen) !== null){
+        return `<button class="link-btn" data-calc-row="${f.id}" title="Hadlock formula from femur length and abdominal circumference">Calculate</button>`;
+      }
+      return '\u2014';
+    }
     const pct = approxPct(key, gaDays, v);
     const shown = key === 'weight' ? Number(v).toLocaleString() : escapeHtml(String(v));
     const calc = key === 'weight' && f.weightCalc ? '<span class="pct">calculated</span>' : '';
@@ -2069,6 +2075,13 @@
         state.gynae.fetal = state.gynae.fetal.filter(x => x.id !== d.removeFetal);
         editingBlocks.delete('fetal::' + d.removeFetal);
         saveKey('gynae-data', state.gynae); renderGynae();
+      } else if (d.calcRow){
+        const f = state.gynae.fetal.find(x => x.id === d.calcRow);
+        const w = f ? calcFetalWeight(f.femur, f.abdomen) : null;
+        if (w !== null){
+          f.weight = String(w); f.weightCalc = true;
+          saveKey('gynae-data', state.gynae); renderGynae();
+        }
       } else if (d.calcFetal){
         const get = k => document.querySelector(`[data-fetal-id="${d.calcFetal}"][data-fetal-input="${k}"]`);
         const w = calcFetalWeight(get('femur').value, get('abdomen').value);
