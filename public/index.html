@@ -1468,6 +1468,15 @@
       pat.pool = makePool('fPat', 'f', 'pat', 'Father – paternity (flexible days)', patDays, birth, win12, L.f.flex, dpwF);
       pat.start = pat.pool.sel[0] || null;
       pat.end = pat.pool.sel.length ? pat.pool.sel[pat.pool.sel.length - 1] : null;
+    } else if (L.f.mode === 'split22'){
+      // Half the leave as one continuous block, the other half as flexible working days (by agreement, within 12 months)
+      const half = rules.patWeeks / 2;
+      pat.start = L.f.start || birth;
+      if (pat.start < birth) warnings.push('Paternity leave can only start on or after the child’s birth date.');
+      pat.block1End = LD.add(pat.start, half * 7 - 1);
+      markRange('f', 'pat', pat.start, pat.block1End);
+      pat.pool = makePool('fPat', 'f', 'pat', 'Father – paternity (flexible days)', half * Math.min(6, dpwF), LD.add(pat.block1End, 1), win12, L.f.flex, dpwF);
+      pat.end = pat.pool.sel.length ? pat.pool.sel[pat.pool.sel.length - 1] : pat.block1End;
     } else {
       pat.start = L.f.start || birth;
       if (pat.start < birth) warnings.push('Paternity leave can only start on or after the child’s birth date.');
@@ -1563,7 +1572,8 @@
     </tbody></table>`;
     const patFacts = `<table><tbody>
       ${lvRow('Leave starts', pat.start ? LD.nice(pat.start) : '—')}
-      ${lvRow('Leave ends', pat.end ? LD.nice(pat.end) : '—')}
+      ${pat.mode === 'split22' ? lvRow('First ' + (rules.patWeeks / 2) + ' weeks end', LD.nice(pat.block1End)) : ''}
+      ${lvRow(pat.mode === 'split22' ? 'Last flexible day used' : 'Leave ends', pat.end && (pat.mode !== 'split22' || pat.pool.sel.length) ? LD.nice(pat.end) : '—')}
       ${lvRow('Tell your employer by', pat.notice ? LD.nice(pat.notice) + ' <span style="color:var(--ink-soft);">(4 weeks’ notice)</span>' : '—')}
       ${lvRow('Back at work', pat.back ? LD.nice(pat.back) : '—')}
     </tbody></table>`;
@@ -1648,7 +1658,8 @@
           <div><label>How it is taken</label><select data-lv="f.mode">
             <option value="continuous" ${pat.mode === 'continuous' ? 'selected' : ''}>${rules.patWeeks} weeks continuous (within 16 weeks of birth)</option>
             <option value="block12" ${pat.mode === 'block12' ? 'selected' : ''}>${rules.patWeeks} weeks continuous, any time within 12 months (employer agrees)</option>
-            <option value="flexible" ${pat.mode === 'flexible' ? 'selected' : ''}>Split into flexible days (employer agrees)</option>
+            <option value="split22" ${pat.mode === 'split22' ? 'selected' : ''}>${rules.patWeeks / 2}-week block + ${rules.patWeeks / 2} weeks flexible days (employer agrees)</option>
+            <option value="flexible" ${pat.mode === 'flexible' ? 'selected' : ''}>All ${rules.patWeeks} weeks as flexible days (employer agrees)</option>
           </select></div>
         </div>
         ${patFacts}${lvPoolLine(pat.pool)}
