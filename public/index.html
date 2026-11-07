@@ -163,26 +163,34 @@
   .pct{ display:block; font-size:11.5px; color: var(--ink-soft); }
   .fetal-note{ font-size: 12.5px; color: var(--ink-soft); margin: 4px 0 14px; }
   /* PARENTAL LEAVE CALENDAR */
-  .lv-months{ display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .lv-month h4{ margin: 0 0 6px; font-size: 15px; font-weight: 600; }
-  .lv-grid{ display:grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-  .lv-grid b{ font-size: 10.5px; font-weight: 600; color: var(--ink-soft); text-align:center; }
+  .lv-months{ display:grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 22px; }
+  .lv-month h4{ margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .lv-grid{ display:grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .lv-grid b{ font-size: 12.5px; font-weight: 600; color: var(--ink-soft); text-align:center; padding-bottom: 2px; }
   .lv-blank{ display:block; }
-  .lv-day{ position:relative; height: 40px; border: 1px solid var(--line); border-radius: 5px; background: #fff; padding: 1px 4px; font-size: 12px; }
+  .lv-day{ position:relative; height: 62px; border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 3px 6px; font-size: 14.5px; }
   .lv-day.we{ background: #F4F1EA; color: var(--ink-soft); }
   .lv-day.ph{ background: var(--amber-soft); }
   .lv-day.birth{ outline: 2px solid var(--wine); outline-offset: -1px; }
-  .lv-day .bb{ position:absolute; top:1px; right:2px; font-size: 11px; line-height:1; }
+  .lv-day .bb{ position:absolute; top:3px; right:4px; font-size: 14px; line-height:1; }
   .lv-day.pickable{ cursor: pointer; box-shadow: inset 0 0 0 2px var(--steel-soft); }
   .lv-day.pickable:hover{ box-shadow: inset 0 0 0 2px var(--steel); }
-  .lv-day .ln{ position:absolute; left: 3px; right: 3px; height: 7px; border-radius: 3px; }
-  .lv-day .ln.m{ bottom: 13px; }
-  .lv-day .ln.f{ bottom: 4px; }
+  .lv-day .ln{ position:absolute; left: 4px; right: 4px; height: 10px; border-radius: 4px; }
+  .lv-day .ln.m{ bottom: 19px; }
+  .lv-day .ln.f{ bottom: 6px; }
   .m-mat{ background: var(--plum); }
   .m-spl{ background: var(--plum-soft); box-shadow: inset 0 0 0 1.5px var(--plum); }
   .f-pat{ background: var(--sage); }
   .f-spl{ background: var(--sage-soft); box-shadow: inset 0 0 0 1.5px var(--sage); }
-  .lv-legend{ display:flex; flex-wrap:wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-soft); margin-bottom: 12px; }
+  .lv-toolbar{ display:flex; flex-wrap:wrap; align-items:center; gap: 8px; margin: 4px 0 6px; }
+  .lv-pick{ font: inherit; font-size: 14px; font-weight: 600; padding: 7px 16px; border-radius: 20px; cursor: pointer; border: 2px solid transparent; color: var(--ink); }
+  .lv-pick.m-mat{ background: var(--plum-soft); border-color: var(--plum); }
+  .lv-pick.m-spl{ background: var(--paper); border-color: var(--plum); box-shadow: none; }
+  .lv-pick.f-pat{ background: var(--sage-soft); border-color: var(--sage); }
+  .lv-pick.f-spl{ background: var(--paper); border-color: var(--sage); box-shadow: none; }
+  .lv-pick.on.m-mat, .lv-pick.on.m-spl{ background: var(--plum); color: #fff; }
+  .lv-pick.on.f-pat, .lv-pick.on.f-spl{ background: var(--sage); color: #fff; }
+  .lv-legend{ display:flex; flex-wrap:wrap; gap: 6px 18px; font-size: 14px; color: var(--ink-soft); margin-bottom: 12px; }
   .lv-legend span{ display:inline-flex; align-items:center; gap: 6px; }
   .lv-legend .sw{ display:inline-block; width: 22px; height: 9px; border-radius: 3px; }
   .lv-legend .sw.ph{ background: var(--amber-soft); border: 1px solid var(--line); height: 12px; width: 14px; }
@@ -647,7 +655,7 @@
       tasks: []
     },
     leave: {
-      birthDate: '', mDays: 5, fDays: 5,
+      birthDate: '', mDays: 5, fDays: 5, phCounts: true,
       m: { start: '', mode: 'continuous', flex: [] },
       f: { start: '', mode: 'continuous', flex: [] },
       spl: { mWeeks: null, mStart: '', fStart: '', mMode: 'continuous', fMode: 'continuous', mFlex: [], fFlex: [] }
@@ -1381,10 +1389,13 @@
   };
   let leavePick = null; // the leave pool whose days are being chosen on the calendar
 
-  function leaveIsWorkday(date, dpw){
+  // A day the parent would normally work. When forLeave is true and "public holidays use up leave" is on,
+  // a public holiday on a working day still counts as a leave day, so it can be chosen.
+  function leaveIsWorkday(date, dpw, forLeave){
     const dow = LD.dow(date);
     if (dow === 0) return false;
     if (dow === 6 && Number(dpw) < 6) return false;
+    if (forLeave && state.leave.phCounts !== false) return true;
     return !LEAVE_HOLIDAYS[date];
   }
   function nextWorkday(after, dpw){
@@ -1412,7 +1423,7 @@
     };
     const markRange = (who, type, s, e) => { for (let d = s; d <= e; d = LD.add(d, 1)) mark(who, type, d); };
     const makePool = (id, who, type, label, count, ws, we, stored, dpw) => {
-      const ok = (stored || []).filter(d => d >= ws && d <= we && leaveIsWorkday(d, dpw)).sort();
+      const ok = (stored || []).filter(d => d >= ws && d <= we && leaveIsWorkday(d, dpw, true)).sort();
       const sel = ok.slice(0, count);
       const pool = { id, who, type, label, count, ws, we, dpw, sel };
       pools.push(pool);
@@ -1490,8 +1501,23 @@
     spl.m = splParent('m', mW, dpwM, mat.end, L.spl.mStart, L.spl.mMode, L.spl.mFlex, 'Mother');
     spl.f = splParent('f', fW, dpwF, fStat, L.spl.fStart, L.spl.fMode, L.spl.fFlex, 'Father');
 
+    // What the calendar buttons can select: each leave type, and how a click on a day acts on it
+    const targets = [
+      { id: 'mMat', short: 'Maternal', cls: 'm-mat', who: 'm', mode: mat.mode, pool: mat.pool, startPath: 'm.start', dpw: dpwM, ws: mEarliest, we: birth, label: 'Mother \u2013 maternity' },
+      { id: 'fPat', short: 'Paternal', cls: 'f-pat', who: 'f', mode: pat.mode, pool: pat.pool, startPath: 'f.start', dpw: dpwF, ws: birth, we: LD.add(birth, 12 * 7), label: 'Father \u2013 paternity' }
+    ];
+    if (spl.m) targets.push({ id: 'mSpl', short: 'Shared \u2013 mother', cls: 'm-spl', who: 'm', mode: spl.m.mode, pool: spl.m.pool, startPath: 'spl.mStart', dpw: dpwM, ws: birth, we: win12, label: 'Mother \u2013 shared parental leave' });
+    if (spl.f) targets.push({ id: 'fSpl', short: 'Shared \u2013 father', cls: 'f-spl', who: 'f', mode: spl.f.mode, pool: spl.f.pool, startPath: 'spl.fStart', dpw: dpwF, ws: birth, we: win12, label: 'Father \u2013 shared parental leave' });
+    // Public holidays on a working day that fall inside each parent's leave (they use up leave, they do not extend it)
+    const isWorkDay = (d, dpw) => LD.dow(d) !== 0 && (LD.dow(d) !== 6 || dpw === 6);
+    const phInside = { m: [], f: [] };
+    Object.keys(lanes).sort().forEach(d => {
+      if (!LEAVE_HOLIDAYS[d]) return;
+      if (lanes[d].m && isWorkDay(d, dpwM)) phInside.m.push(d);
+      if (lanes[d].f && isWorkDay(d, dpwF)) phInside.f.push(d);
+    });
     pools.forEach(p => { if (p.sel.length < p.count) warnings.push(p.label + ': ' + p.sel.length + ' of ' + p.count + ' days chosen so far.'); });
-    return { birth, edd, rules, dpwM, dpwF, win12, lanes, warnings, pools, mat, pat, spl, mEarliest };
+    return { birth, edd, rules, dpwM, dpwF, win12, lanes, warnings, pools, mat, pat, spl, mEarliest, targets, phInside };
   }
 
   function lvRow(k, v){ return `<tr><td style="color:var(--ink-soft); padding-right:14px; white-space:nowrap;">${k}</td><td>${v}</td></tr>`; }
@@ -1547,7 +1573,7 @@
     const all = Object.keys(plan.lanes).concat([plan.birth, plan.mEarliest]);
     let minD = all.reduce((a, b) => (a < b ? a : b));
     let maxD = all.reduce((a, b) => (a > b ? a : b));
-    const picked = plan.pools.find(p => p.id === leavePick);
+    const picked = plan.targets.find(t => t.id === leavePick);
     plan.pools.forEach(p => { if (p.we > maxD) maxD = p.we; });
     if (LD.add(plan.birth, 120) > maxD) maxD = LD.add(plan.birth, 120);
     const months = [];
@@ -1562,7 +1588,7 @@
       for (let n = 1; n <= days; n++){
         const date = first.slice(0, 8) + String(n).padStart(2, '0');
         const ln = plan.lanes[date] || {}, dow = LD.dow(date), ph = LEAVE_HOLIDAYS[date];
-        const inWin = picked && date >= picked.ws && date <= picked.we && leaveIsWorkday(date, picked.dpw);
+        const inWin = picked && date >= picked.ws && date <= picked.we && (picked.pool ? date >= picked.pool.ws && date <= picked.pool.we && leaveIsWorkday(date, picked.dpw, true) : true);
         const tip = [LD.nice(date), ph, date === plan.birth ? (L.birthDate ? 'Birth date' : 'Expected due date') : '', ln.m ? LN.m[ln.m] : '', ln.f ? LN.f[ln.f] : ''].filter(Boolean).join(' · ');
         cells += `<div class="lv-day${dow === 0 || dow === 6 ? ' we' : ''}${ph ? ' ph' : ''}${date === plan.birth ? ' birth' : ''}${inWin ? ' pickable' : ''}" data-lv-day="${date}" title="${escapeHtml(tip)}"><span class="n">${n}</span>${date === plan.birth ? '<span class="bb">👶</span>' : ''}${ln.m ? `<i class="ln m m-${ln.m}"></i>` : ''}${ln.f ? `<i class="ln f f-${ln.f}"></i>` : ''}</div>`;
       }
@@ -1580,6 +1606,7 @@
         <div><label>Mother’s working days / week</label><select data-lv="mDays"><option value="5" ${plan.dpwM === 5 ? 'selected' : ''}>5 days</option><option value="6" ${plan.dpwM === 6 ? 'selected' : ''}>6 days</option></select></div>
         <div><label>Father’s working days / week</label><select data-lv="fDays"><option value="5" ${plan.dpwF === 5 ? 'selected' : ''}>5 days</option><option value="6" ${plan.dpwF === 6 ? 'selected' : ''}>6 days</option></select></div>
       </div>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:6px; font-size:14.5px; cursor:pointer;"><input type="checkbox" data-lv="phCounts" ${L.phCounts !== false ? 'checked' : ''} style="width:auto;" /> Public holidays use up leave days (a holiday inside a leave period counts as leave)</label>
       ${when}
       <div class="stat-row" style="margin-top:14px;">
         <div class="stat"><div class="n">${rules.matWeeks} weeks</div><div class="l">Maternity leave (mother)</div></div>
@@ -1630,8 +1657,18 @@
         <span><i class="sw f-pat"></i>Paternity</span><span><i class="sw f-spl"></i>Shared (father)</span>
         <span><i class="sw ph"></i>Public holiday</span><span><i class="sw we"></i>Weekend</span><span>👶 ${L.birthDate ? 'Birth date' : 'Due date'}</span>
       </div>
-      ${picked ? `<div class="fetal-note" style="margin:6px 0 12px;"><strong>Picking:</strong> ${escapeHtml(picked.label)} – ${picked.sel.length} of ${picked.count} days chosen. Click a highlighted day to add or remove it.</div>` : ''}
+      <div class="lv-toolbar">
+        <span style="font-size:13.5px; color:var(--ink-soft);">Select leave to place:</span>
+        ${plan.targets.map(t => `<button class="lv-pick ${t.cls}${leavePick === t.id ? ' on' : ''}" data-lv-pick="${t.id}">${t.short}</button>`).join('')}
+        ${leavePick ? '<button class="link-btn" data-lv-pick="' + leavePick + '">Done</button>' : ''}
+      </div>
+      <div class="fetal-note" style="margin:2px 0 12px;">${picked
+        ? (picked.pool
+          ? `<strong>${escapeHtml(picked.label)}:</strong> ${picked.pool.sel.length} of ${picked.pool.count} flexible days chosen. Click a highlighted day to add or remove it.`
+          : `<strong>${escapeHtml(picked.label)}:</strong> click a highlighted day to make it the first day of the leave block.`)
+        : 'Pick a leave type above, then click days on the calendar to place it.'}</div>
       <div class="lv-months">${monthHtml}</div>
+      ${plan.phInside.m.length || plan.phInside.f.length ? `<div class="fetal-note" style="margin-top:14px;"><strong>Public holidays inside leave</strong> (they use up leave days): ${[['Mother', plan.phInside.m], ['Father', plan.phInside.f]].filter(x => x[1].length).map(x => x[0] + ' \u2013 ' + x[1].length + ' (' + x[1].map(d => LEAVE_HOLIDAYS[d] + ' ' + LD.parse(d).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', timeZone: 'UTC' })).join(', ') + ')').join('; ')}.</div>` : ''}
       ${plan.warnings.length ? `<div style="margin-top:16px;"><strong style="font-size:14px;">Things to check</strong><ul style="margin:6px 0 0 18px; font-size:14px; color:var(--ink-soft);">${plan.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>` : ''}
       <p class="fetal-note" style="margin-top:16px;">Assumes a Singapore citizen child and parents who have worked for their employer for at least 3 months before the birth. Splitting leave into days or taking it later needs your employer’s agreement, and 4 weeks’ notice is required. Public holidays are only listed up to Dec 2027 (later years are not yet gazetted). This is a planning aid – confirm the details with your employer and MOM.
       Sources: MOM – <a href="https://www.mom.gov.sg/employment-practices/leave/maternity-leave/eligibility-and-entitlement" target="_blank" rel="noopener">maternity leave</a>, <a href="https://www.mom.gov.sg/employment-practices/leave/maternity-leave/planning-your-leave" target="_blank" rel="noopener">planning maternity leave</a>, <a href="https://www.mom.gov.sg/employment-practices/leave/paternity-leave" target="_blank" rel="noopener">paternity leave</a>, <a href="https://www.mom.gov.sg/employment-practices/leave/shared-parental-leave" target="_blank" rel="noopener">shared parental leave</a>, <a href="https://www.mom.gov.sg/newsroom/press-releases/2026/0618-public-holidays-for-2027" target="_blank" rel="noopener">public holidays 2027</a>.</p>
@@ -1644,7 +1681,7 @@
     root.addEventListener('change', e => {
       const path = e.target.dataset.lv;
       if (!path) return;
-      let v = e.target.value;
+      let v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
       if (['mDays', 'fDays'].includes(path)) v = Number(v);
       if (path === 'spl.mWeeks') v = v === '' ? null : Math.max(0, Math.round(Number(v)));
       const keys = path.split('.');
@@ -1671,14 +1708,22 @@
       const dayEl = e.target.closest('[data-lv-day]');
       if (dayEl && leavePick){
         const plan = computeLeave();
-        const pool = plan && plan.pools.find(p => p.id === leavePick);
+        const t = plan && plan.targets.find(x => x.id === leavePick);
         const date = dayEl.dataset.lvDay;
-        if (!pool || date < pool.ws || date > pool.we || !leaveIsWorkday(date, pool.dpw)) return;
-        const arr = poolArray(pool.id);
-        const i = arr.indexOf(date);
-        if (i >= 0) arr.splice(i, 1);
-        else if (pool.sel.length < pool.count) arr.push(date);
-        else return;
+        if (!t || date < t.ws || date > t.we) return;
+        if (t.pool){
+          if (!leaveIsWorkday(date, t.dpw, true) || date < t.pool.ws || date > t.pool.we) return;
+          const arr = poolArray(t.id);
+          const i = arr.indexOf(date);
+          if (i >= 0) arr.splice(i, 1);
+          else if (t.pool.sel.length < t.pool.count) arr.push(date);
+          else return;
+        } else {
+          const keys = t.startPath.split('.');
+          let o = state.leave;
+          keys.slice(0, -1).forEach(k => { o = o[k]; });
+          o[keys[keys.length - 1]] = date;
+        }
         saveKey('leave-data', state.leave); renderLeave();
       }
     });
