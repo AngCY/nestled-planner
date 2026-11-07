@@ -507,8 +507,8 @@
         <div><label for="fDate">Scan date</label><input type="date" id="fDate" /></div>
         <div><label for="fGaW">Gestation (weeks)</label><input type="number" id="fGaW" min="0" max="45" placeholder="Auto from due date" /></div>
         <div><label for="fGaD">+ days</label><input type="number" id="fGaD" min="0" max="6" placeholder="0" /></div>
-        <div><label for="fFl">Femur length (mm)</label><input type="number" id="fFl" min="0" step="0.1" /></div>
-        <div><label for="fAc">Abdominal circ. (mm)</label><input type="number" id="fAc" min="0" step="0.1" /></div>
+        <div><label for="fFl">Femur length (cm)</label><input type="number" id="fFl" min="0" step="0.01" /></div>
+        <div><label for="fAc">Abdominal circ. (cm)</label><input type="number" id="fAc" min="0" step="0.01" /></div>
         <div><label for="fWeight">Est. fetal weight (g)</label><input type="number" id="fWeight" min="0" step="1" /></div>
       </div>
       <div>
@@ -1114,6 +1114,11 @@
     abdomen: { minW: 14, maxW: 40, t: {14:[72.9,73.8,75.3,80.6,85.9,87.4,88.4],15:[82.9,84.1,85.8,91.9,98.1,99.8,100.9],16:[93.0,94.3,96.3,103.2,110.1,112.1,113.4],17:[103.1,104.5,106.7,114.4,122.1,124.3,125.7],18:[113.2,114.8,117.2,125.6,134.0,136.4,138.0],19:[123.3,125.0,127.6,136.7,145.8,148.4,150.1],20:[133.4,135.2,138.0,147.7,157.5,160.3,162.1],21:[143.4,145.3,148.3,158.7,169.1,172.0,174.0],22:[153.5,155.5,158.6,169.6,180.6,183.7,185.7],23:[163.4,165.6,168.9,180.4,192.0,195.3,197.4],24:[173.3,175.6,179.0,191.2,203.3,206.8,209.0],25:[183.2,185.5,189.1,201.8,214.5,218.1,220.5],26:[192.9,195.4,199.1,212.4,225.7,229.5,231.9],27:[202.6,205.1,209.1,222.9,236.8,240.7,243.2],28:[212.1,214.7,218.8,233.3,247.8,251.9,254.5],29:[221.4,224.2,228.5,243.6,258.7,263.0,265.8],30:[230.6,233.5,238.0,253.8,269.6,274.1,277.0],31:[239.6,242.6,247.4,263.9,280.5,285.2,288.3],32:[248.4,251.6,256.5,273.9,291.3,296.3,299.5],33:[256.9,260.3,265.5,283.8,302.2,307.4,310.7],34:[265.2,268.7,274.3,293.6,313.0,318.5,322.0],35:[273.2,276.9,282.8,303.3,323.8,329.6,333.4],36:[280.8,284.8,291.0,312.8,334.6,340.9,344.9],37:[288.1,292.4,299.0,322.3,345.5,352.1,356.4],38:[295.1,299.6,306.7,331.6,356.4,363.5,368.1],39:[301.6,306.5,314.1,340.8,367.4,375.0,379.9],40:[307.7,312.9,321.1,349.8,378.5,386.7,392.0]} },
     weight:  { minW: 22, maxW: 40, t: {22:[463,470,481,525,578,596,607],23:[516,524,538,592,658,680,694],24:[575,585,602,668,751,778,796],25:[642,654,675,756,857,891,913],26:[716,732,757,856,980,1020,1048],27:[800,818,848,969,1119,1168,1202],28:[892,915,951,1097,1277,1335,1376],29:[994,1021,1064,1239,1453,1521,1570],30:[1105,1138,1189,1396,1648,1728,1784],31:[1226,1265,1325,1568,1861,1953,2017],32:[1356,1401,1472,1755,2090,2195,2267],33:[1495,1547,1630,1954,2332,2450,2529],34:[1641,1700,1796,2162,2582,2713,2798],35:[1794,1860,1969,2378,2836,2978,3069],36:[1951,2024,2146,2594,3086,3237,3331],37:[2109,2190,2323,2806,3324,3480,3578],38:[2266,2355,2496,3006,3540,3697,3798],39:[2416,2516,2658,3186,3726,3876,3982],40:[2554,2670,2805,3338,3871,4006,4121]} }
   };
+  // The published tables give femur and abdomen in mm; this app records them in cm
+  ['femur', 'abdomen'].forEach(k => {
+    const t = FETAL_REF[k].t;
+    Object.keys(t).forEach(w => { t[w] = t[w].map(v => Math.round(v * 10) / 100); });
+  });
   // The seven centile values at an exact gestational age in days (linear between weeks), or null if outside the table
   function refAt(key, days){
     const r = FETAL_REF[key];
@@ -1202,8 +1207,8 @@
     return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(opts.title)} over time">${g}${line}${dots}</svg>`;
   }
   const FETAL_DEFS = [
-    { key: 'femur', title: 'Femur length', unit: 'mm', color: 'var(--plum)' },
-    { key: 'abdomen', title: 'Abdominal circumference', unit: 'mm', color: 'var(--amber)' },
+    { key: 'femur', title: 'Femur length', unit: 'cm', color: 'var(--plum)' },
+    { key: 'abdomen', title: 'Abdominal circumference', unit: 'cm', color: 'var(--amber)' },
     { key: 'weight', title: 'Estimated fetal weight', unit: 'g', color: 'var(--sage)' }
   ];
   function renderFetalCharts(fetal){
@@ -1263,8 +1268,8 @@
       <tr>
         <td>${inp('date', f.date, 'date', 135)}</td>
         <td>${inp('gaWeeks', f.gaWeeks, 'number', 56, 'min="0" max="45" placeholder="wk"')} ${inp('gaDays', f.gaDays, 'number', 48, 'min="0" max="6" placeholder="d"')}</td>
-        <td>${inp('femur', f.femur, 'number', 70, 'min="0" step="0.1"')}</td>
-        <td>${inp('abdomen', f.abdomen, 'number', 70, 'min="0" step="0.1"')}</td>
+        <td>${inp('femur', f.femur, 'number', 70, 'min="0" step="0.01"')}</td>
+        <td>${inp('abdomen', f.abdomen, 'number', 70, 'min="0" step="0.01"')}</td>
         <td>${inp('weight', f.weight, 'number', 76, 'min="0"')}</td>
         <td><input type="text" data-fetal-input="notes" data-fetal-id="${f.id}" value="${escapeHtml(f.notes || '')}" /></td>
         <td>
@@ -1280,8 +1285,8 @@
       <tr>
         <td>${fmtDate(f.date)}</td>
         <td>${fmtGa(ga)}</td>
-        <td>${fetalCell(f, 'femur', 'mm', ga)}</td>
-        <td>${fetalCell(f, 'abdomen', 'mm', ga)}</td>
+        <td>${fetalCell(f, 'femur', 'cm', ga)}</td>
+        <td>${fetalCell(f, 'abdomen', 'cm', ga)}</td>
         <td>${fetalCell(f, 'weight', 'g', ga)}</td>
         <td>${escapeHtml(f.notes || '\u2014')}</td>
         <td>
