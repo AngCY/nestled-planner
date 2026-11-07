@@ -153,6 +153,12 @@
   .checklist-item.done span{ text-decoration: line-through; color: var(--ink-soft); }
   .checklist-item span{ flex:1; font-size: 15.5px; }
 
+  .fetal-charts{ display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 18px 0 6px; }
+  .fetal-chart{ border:1px solid var(--line); border-radius:8px; padding:10px 12px 6px; background: var(--paper); }
+  .fetal-chart h3{ margin:0 0 2px; font-size:14.5px; font-weight:600; }
+  .fetal-chart .chart-empty{ color: var(--ink-soft); font-style: italic; font-size: 13.5px; padding: 28px 0; text-align:center; }
+  .fetal-chart svg{ width:100%; height:auto; display:block; }
+  .fetal-chart text{ font-family: inherit; fill: var(--ink-soft); font-size: 10.5px; }
   .pill{ display:inline-block; font-size: 12px; font-weight:600; padding: 2px 10px; border-radius: 20px; }
   .pill-considering{ background: var(--amber-soft); color: var(--amber); }
   .pill-booked{ background: var(--sage-soft); color: var(--sage); }
@@ -493,6 +499,29 @@
     </div>
 
     <div class="section accent-plum">
+      <h2>Fetal growth</h2>
+      <div class="sub">Record the figures from each ultrasound scan to track the baby's growth over time.</div>
+      <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+        <div><label for="fDate">Scan date</label><input type="date" id="fDate" /></div>
+        <div><label for="fGaW">Gestation (weeks)</label><input type="number" id="fGaW" min="0" max="45" placeholder="Auto from due date" /></div>
+        <div><label for="fGaD">+ days</label><input type="number" id="fGaD" min="0" max="6" placeholder="0" /></div>
+        <div><label for="fFl">Femur length (mm)</label><input type="number" id="fFl" min="0" step="0.1" /></div>
+        <div><label for="fAc">Abdominal circ. (mm)</label><input type="number" id="fAc" min="0" step="0.1" /></div>
+        <div><label for="fWeight">Est. fetal weight (g)</label><input type="number" id="fWeight" min="0" step="1" /></div>
+      </div>
+      <div>
+        <label for="fNotes">Notes</label>
+        <input type="text" id="fNotes" placeholder="Optional" />
+      </div>
+      <button class="btn-plum" id="addFetalBtn" style="margin-top:10px;">Add scan</button>
+      <div class="fetal-charts" id="fetalCharts"></div>
+      <table>
+        <thead><tr><th>Date</th><th>Gestation</th><th>Femur</th><th>Abdomen</th><th>Weight</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="fetalRows"></tbody>
+      </table>
+    </div>
+
+    <div class="section accent-plum">
       <h2>Questions for the doctor</h2>
       <div class="sub">Jot things down as they come to mind, tick them off once answered.</div>
       <div id="questionList"></div>
@@ -584,6 +613,7 @@
       profile: { edd: '', clinic: '', bloodType: '', allergies: '', medications: '' },
       appointments: [],
       measurements: [],
+      fetal: [],
       questions: []
     },
     notepad: {
@@ -760,6 +790,7 @@
     }));
     state.confinement = await loadKey('confinement-data', defaultState.confinement);
     state.gynae = await loadKey('gynae-data', defaultState.gynae);
+    state.gynae.fetal = state.gynae.fetal || [];
     state.notepad = await loadKey('notepad-data', defaultState.notepad);
     state.checklist = await loadKey('checklist-data', defaultState.checklist);
 
@@ -1068,6 +1099,104 @@
           <button class="btn-danger-text" data-remove-question="${q.id}">Remove</button>
         </div>`).join('')
       : '<p style="color:var(--ink-soft); font-style:italic;">No questions yet.</p>';
+    renderFetal();
+  }
+
+  /* ---------- FETAL GROWTH ---------- */
+  // Gestational age in days for a scan: entered by hand, else worked out from the due date (280-day term)
+  function fetalGaDays(f){
+    if (f.gaWeeks !== '' && f.gaWeeks != null) return Number(f.gaWeeks) * 7 + (Number(f.gaDays) || 0);
+    const edd = state.gynae.profile.edd;
+    if (!edd || !f.date) return null;
+    const diff = Math.round((new Date(edd + 'T00:00:00') - new Date(f.date + 'T00:00:00')) / 86400000);
+    return 280 - diff;
+  }
+  function fmtGa(days){
+    if (days == null || isNaN(days) || days < 0) return '\u2014';
+    return Math.floor(days / 7) + 'w' + (days % 7 ? ' ' + (days % 7) + 'd' : '');
+  }
+  function niceTicks(min, max, n){
+    if (min === max){ min -= 1; max += 1; }
+    const raw = (max - min) / n;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(st => st >= raw);
+    const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+    const out = [];
+    for (let v = lo; v <= hi + step / 2; v += step) out.push(Math.round(v * 1000) / 1000);
+    return out;
+  }
+  // points: [{ x, y, gaDays, date }]; x is gestational days (or a timestamp when useGa is false)
+  function lineChartSvg(points, opts){
+    const W = 440, H = 230, L = 44, R = 14, T = 26, B = 34;
+    const xs = points.map(p => p.x), ys = points.map(p => p.y);
+    let xMin = Math.min(...xs), xMax = Math.max(...xs);
+    if (xMin === xMax){ xMin -= opts.xPad; xMax += opts.xPad; }
+    let yLo = Math.min(...ys), yHi = Math.max(...ys);
+    if (yLo === yHi){ const pad = Math.abs(yLo) * 0.1 || 1; yLo -= pad; yHi += pad; }
+    const yt = niceTicks(yLo, yHi, 4);
+    const yMin = yt[0], yMax = yt[yt.length - 1];
+    const sx = x => L + (x - xMin) / (xMax - xMin) * (W - L - R);
+    const sy = y => T + (1 - (y - yMin) / (yMax - yMin)) * (H - T - B);
+    const xt = opts.xTicks(xMin, xMax);
+    let g = '';
+    yt.forEach(v => { g += `<line x1="${L}" x2="${W - R}" y1="${sy(v)}" y2="${sy(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${sy(v) + 3.5}" text-anchor="end">${v}</text>`; });
+    xt.forEach(t => { g += `<text x="${sx(t.v)}" y="${H - B + 16}" text-anchor="middle">${t.label}</text>`; });
+    g += `<text x="4" y="11" style="font-weight:600">${opts.unit}</text>`;
+    const path = points.map((p, i) => (i ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ');
+    const line = points.length > 1 ? `<path d="${path}" fill="none" stroke="${opts.color}" stroke-width="2.2" stroke-linejoin="round"/>` : '';
+    const dots = points.map(p => `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="4" fill="${opts.color}" stroke="var(--paper)" stroke-width="1.5"><title>${escapeHtml(p.tip)}</title></circle>`).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(opts.title)} over time">${g}${line}${dots}</svg>`;
+  }
+  function renderFetalCharts(fetal){
+    const el = document.getElementById('fetalCharts');
+    const defs = [
+      { key: 'femur', title: 'Femur length', unit: 'mm', color: 'var(--plum)' },
+      { key: 'abdomen', title: 'Abdominal circumference', unit: 'mm', color: 'var(--amber)' },
+      { key: 'weight', title: 'Estimated fetal weight', unit: 'g', color: 'var(--sage)' }
+    ];
+    el.innerHTML = defs.map(d => {
+      const raw = fetal.filter(f => f[d.key] !== '' && f[d.key] != null && !isNaN(Number(f[d.key])));
+      let body;
+      if (!raw.length){
+        body = '<div class="chart-empty">No data yet</div>';
+      } else {
+        // Use gestational age on the x-axis when every point has one, otherwise fall back to the scan date
+        const useGa = raw.every(f => fetalGaDays(f) != null);
+        const pts = raw.map(f => {
+          const ga = fetalGaDays(f);
+          const v = Number(f[d.key]);
+          return {
+            x: useGa ? ga : new Date(f.date + 'T00:00:00').getTime(),
+            y: v,
+            tip: `${fmtDate(f.date)}${ga != null ? ' \u00B7 ' + fmtGa(ga) : ''}: ${v} ${d.unit}`
+          };
+        }).sort((a, b) => a.x - b.x);
+        body = lineChartSvg(pts, {
+          title: d.title, unit: d.unit, color: d.color,
+          xPad: useGa ? 7 : 7 * 86400000,
+          xTicks: useGa
+            ? (lo, hi) => { const out = []; for (let w = Math.ceil(lo / 7); w * 7 <= hi; w += Math.max(1, Math.ceil((hi - lo) / 7 / 6))) out.push({ v: w * 7, label: w + 'w' }); return out; }
+            : (lo, hi) => [0, 1, 2, 3].map(i => { const v = lo + (hi - lo) * i / 3; return { v, label: new Date(v).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) }; })
+        });
+      }
+      return `<div class="fetal-chart"><h3>${d.title}</h3>${body}</div>`;
+    }).join('');
+  }
+  function renderFetal(){
+    const fetal = state.gynae.fetal || [];
+    renderFetalCharts(fetal);
+    const rows = document.getElementById('fetalRows');
+    rows.innerHTML = fetal.length ? fetal.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).map(f => `
+      <tr>
+        <td>${fmtDate(f.date)}</td>
+        <td>${fmtGa(fetalGaDays(f))}</td>
+        <td>${f.femur !== '' && f.femur != null ? escapeHtml(String(f.femur)) + ' mm' : '\u2014'}</td>
+        <td>${f.abdomen !== '' && f.abdomen != null ? escapeHtml(String(f.abdomen)) + ' mm' : '\u2014'}</td>
+        <td>${f.weight !== '' && f.weight != null ? Number(f.weight).toLocaleString() + ' g' : '\u2014'}</td>
+        <td>${escapeHtml(f.notes || '\u2014')}</td>
+        <td><button class="btn-danger-text" data-remove-fetal="${f.id}">Remove</button></td>
+      </tr>`).join('')
+      : '<tr class="empty-row"><td colspan="7">No scans logged yet.</td></tr>';
   }
 
   /* ---------- COUNTDOWN ---------- */
@@ -1718,7 +1847,7 @@
       document.getElementById(elId).addEventListener('change', e => {
         state.gynae.profile[key] = e.target.value;
         saveKey('gynae-data', state.gynae);
-        if (key === 'edd') renderCountdown();
+        if (key === 'edd') { renderCountdown(); renderFetal(); }
       });
     });
 
@@ -1789,6 +1918,29 @@
       const id = e.target.dataset.removeMeasure;
       if (id){
         state.gynae.measurements = state.gynae.measurements.filter(x => x.id !== id);
+        saveKey('gynae-data', state.gynae); renderGynae();
+      }
+    });
+
+    document.getElementById('addFetalBtn').addEventListener('click', () => {
+      const date = document.getElementById('fDate').value;
+      if (!date) { document.getElementById('fDate').focus(); return; }
+      const val = id => document.getElementById(id).value;
+      if (!val('fFl') && !val('fAc') && !val('fWeight')) { document.getElementById('fFl').focus(); return; }
+      state.gynae.fetal = state.gynae.fetal || [];
+      state.gynae.fetal.push({
+        id: uid(), date,
+        gaWeeks: val('fGaW'), gaDays: val('fGaD'),
+        femur: val('fFl'), abdomen: val('fAc'), weight: val('fWeight'),
+        notes: val('fNotes').trim()
+      });
+      ['fDate','fGaW','fGaD','fFl','fAc','fWeight','fNotes'].forEach(id => document.getElementById(id).value = '');
+      saveKey('gynae-data', state.gynae); renderGynae();
+    });
+    document.getElementById('fetalRows').addEventListener('click', e => {
+      const id = e.target.dataset.removeFetal;
+      if (id){
+        state.gynae.fetal = state.gynae.fetal.filter(x => x.id !== id);
         saveKey('gynae-data', state.gynae); renderGynae();
       }
     });
