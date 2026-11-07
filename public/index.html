@@ -1472,7 +1472,9 @@
       pat.start = L.f.start || birth;
       if (pat.start < birth) warnings.push('Paternity leave can only start on or after the child’s birth date.');
       pat.end = LD.add(pat.start, rules.patWeeks * 7 - 1);
-      if (pat.end > LD.add(birth, 16 * 7 - 1)) warnings.push('Continuous paternity leave should fall within 16 weeks of birth. Later than that needs your employer’s agreement – switch to "Flexible".');
+      if (L.f.mode === 'block12'){
+        if (pat.end > win12) warnings.push('The paternity leave block should finish within 12 months of birth (by ' + LD.nice(win12) + ').');
+      } else if (pat.end > LD.add(birth, 16 * 7 - 1)) warnings.push('Continuous paternity leave should fall within 16 weeks of birth. For a later start (up to 12 months) choose "continuous, any time within 12 months" – this needs your employer’s agreement.');
       markRange('f', 'pat', pat.start, pat.end);
     }
     pat.notice = pat.start ? LD.add(pat.start, -28) : null;
@@ -1509,7 +1511,7 @@
     // What the calendar buttons can select: each leave type, and how a click on a day acts on it
     const targets = [
       { id: 'mMat', short: 'Maternal', cls: 'm-mat', who: 'm', mode: mat.mode, pool: mat.pool, startPath: 'm.start', focus: mat.pool ? (mat.pool.sel[0] || mat.pool.ws) : mat.start, dpw: dpwM, ws: mEarliest, we: birth, label: 'Mother \u2013 maternity' },
-      { id: 'fPat', short: 'Paternal', cls: 'f-pat', who: 'f', mode: pat.mode, pool: pat.pool, startPath: 'f.start', focus: pat.pool ? (pat.pool.sel[0] || pat.pool.ws) : (pat.start || birth), dpw: dpwF, ws: birth, we: LD.add(birth, 12 * 7), label: 'Father \u2013 paternity' }
+      { id: 'fPat', short: 'Paternal', cls: 'f-pat', who: 'f', mode: pat.mode, pool: pat.pool, startPath: 'f.start', focus: pat.pool ? (pat.pool.sel[0] || pat.pool.ws) : (pat.start || birth), dpw: dpwF, ws: birth, we: pat.mode === 'block12' ? LD.add(win12, -(rules.patWeeks * 7 - 1)) : LD.add(birth, 12 * 7), label: 'Father \u2013 paternity' }
     ];
     if (spl.m) targets.push({ id: 'mSpl', short: 'Shared \u2013 mother', cls: 'm-spl', who: 'm', mode: spl.m.mode, pool: spl.m.pool, startPath: 'spl.mStart', focus: spl.m.pool ? (spl.m.pool.sel[0] || spl.m.pool.ws) : spl.m.start, dpw: dpwM, ws: birth, we: win12, label: 'Mother \u2013 shared parental leave' });
     if (spl.f) targets.push({ id: 'fSpl', short: 'Shared \u2013 father', cls: 'f-spl', who: 'f', mode: spl.f.mode, pool: spl.f.pool, startPath: 'spl.fStart', focus: spl.f.pool ? (spl.f.pool.sel[0] || spl.f.pool.ws) : spl.f.start, dpw: dpwF, ws: birth, we: win12, label: 'Father \u2013 shared parental leave' });
@@ -1640,10 +1642,14 @@
       </div>
       <div class="section accent-sage">
         <h2>Paternal leave plan</h2>
-        <div class="sub">${rules.patWeeks} weeks of government-paid paternity leave.</div>
+        <div class="sub">${rules.patWeeks} weeks of government-paid paternity leave. By default one continuous block within 16 weeks of birth; with your employer\u2019s agreement, a block starting any time within 12 months, or split into working days.</div>
         <div class="form-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:8px;">
           ${pat.mode === 'flexible' ? '<div></div>' : `<div><label>Leave start date</label><input type="date" data-lv="f.start" value="${pat.start}" min="${plan.birth}" /></div>`}
-          <div><label>How it is taken</label>${lvModeSelect('f.mode', pat.mode, [rules.patWeeks + ' weeks continuous', 'Flexible days (employer agrees)'])}</div>
+          <div><label>How it is taken</label><select data-lv="f.mode">
+            <option value="continuous" ${pat.mode === 'continuous' ? 'selected' : ''}>${rules.patWeeks} weeks continuous (within 16 weeks of birth)</option>
+            <option value="block12" ${pat.mode === 'block12' ? 'selected' : ''}>${rules.patWeeks} weeks continuous, any time within 12 months (employer agrees)</option>
+            <option value="flexible" ${pat.mode === 'flexible' ? 'selected' : ''}>Split into flexible days (employer agrees)</option>
+          </select></div>
         </div>
         ${patFacts}${lvPoolLine(pat.pool)}
       </div>
@@ -1750,7 +1756,7 @@
           else if (t.pool.sel.length < t.pool.count) arr.push(date);
           else return say('All ' + t.pool.count + ' flexible days are already used. Click a chosen day to remove it first.');
         } else {
-          if (date < t.ws || date > t.we) return say(t.label + ' can only start between ' + LD.nice(t.ws) + ' and ' + LD.nice(t.we) + '. The whole block then runs on automatically from the day you choose.');
+          if (date < t.ws || date > t.we) return say(t.label + ' can only start between ' + LD.nice(t.ws) + ' and ' + LD.nice(t.we) + (t.mode === 'block12' ? ' so that it finishes within 12 months of birth.' : '.') + ' The whole block then runs on automatically from the day you choose.');
           const keys = t.startPath.split('.');
           let o = state.leave;
           keys.slice(0, -1).forEach(k => { o = o[k]; });
