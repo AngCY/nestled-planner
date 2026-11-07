@@ -159,6 +159,8 @@
   .fetal-chart .chart-empty{ color: var(--ink-soft); font-style: italic; font-size: 13.5px; padding: 28px 0; text-align:center; }
   .fetal-chart svg{ width:100%; height:auto; display:block; }
   .fetal-chart text{ font-family: inherit; fill: var(--ink-soft); font-size: 10.5px; }
+  .pct{ display:block; font-size:11.5px; color: var(--ink-soft); }
+  .fetal-note{ font-size: 12.5px; color: var(--ink-soft); margin: 4px 0 14px; }
   .pill{ display:inline-block; font-size: 12px; font-weight:600; padding: 2px 10px; border-radius: 20px; }
   .pill-considering{ background: var(--amber-soft); color: var(--amber); }
   .pill-booked{ background: var(--sage-soft); color: var(--sage); }
@@ -515,6 +517,7 @@
       </div>
       <button class="btn-plum" id="addFetalBtn" style="margin-top:10px;">Add scan</button>
       <div class="fetal-charts" id="fetalCharts"></div>
+      <div class="fetal-note" id="fetalChartNote"></div>
       <table>
         <thead><tr><th>Date</th><th>Gestation</th><th>Femur</th><th>Abdomen</th><th>Weight</th><th>Notes</th><th></th></tr></thead>
         <tbody id="fetalRows"></tbody>
@@ -1103,6 +1106,37 @@
   }
 
   /* ---------- FETAL GROWTH ---------- */
+  // Reference centiles: INTERGROWTH-21st International Fetal Growth Standards (Univ. of Oxford).
+  // Columns are the 3rd, 5th, 10th, 50th, 90th, 95th and 97th centiles by completed gestational week.
+  const REF_CENTILES = [3, 5, 10, 50, 90, 95, 97];
+  const FETAL_REF = {
+    femur:   { minW: 14, maxW: 40, t: {14:[10.3,10.6,11.2,13.1,15.1,15.6,16.0],15:[13.4,13.7,14.3,16.3,18.3,18.9,19.3],16:[16.4,16.8,17.4,19.5,21.5,22.1,22.5],17:[19.4,19.8,20.4,22.5,24.7,25.3,25.7],18:[22.3,22.7,23.4,25.5,27.7,28.3,28.7],19:[25.2,25.6,26.2,28.5,30.7,31.3,31.7],20:[28.0,28.4,29.0,31.3,33.6,34.2,34.6],21:[30.6,31.1,31.7,34.1,36.4,37.0,37.5],22:[33.3,33.7,34.4,36.7,39.1,39.8,40.2],23:[35.8,36.2,36.9,39.4,41.8,42.5,42.9],24:[38.3,38.7,39.4,41.9,44.4,45.1,45.5],25:[40.6,41.1,41.8,44.4,46.9,47.6,48.1],26:[42.9,43.4,44.1,46.7,49.3,50.1,50.5],27:[45.1,45.6,46.4,49.0,51.7,52.5,52.9],28:[47.3,47.8,48.6,51.3,54.0,54.8,55.3],29:[49.3,49.8,50.6,53.4,56.2,57.0,57.5],30:[51.3,51.8,52.6,55.5,58.4,59.2,59.7],31:[53.2,53.7,54.6,57.5,60.5,61.3,61.9],32:[55.0,55.5,56.4,59.4,62.5,63.4,63.9],33:[56.7,57.3,58.2,61.3,64.4,65.3,65.9],34:[58.3,58.9,59.8,63.1,66.3,67.2,67.8],35:[59.8,60.5,61.4,64.8,68.1,69.1,69.7],36:[61.3,61.9,62.9,66.4,69.9,70.9,71.5],37:[62.6,63.3,64.3,67.9,71.6,72.6,73.3],38:[63.9,64.6,65.6,69.4,73.2,74.3,75.0],39:[65.0,65.8,66.9,70.8,74.7,75.9,76.6],40:[66.1,66.8,68.0,72.1,76.2,77.4,78.2]} },
+    abdomen: { minW: 14, maxW: 40, t: {14:[72.9,73.8,75.3,80.6,85.9,87.4,88.4],15:[82.9,84.1,85.8,91.9,98.1,99.8,100.9],16:[93.0,94.3,96.3,103.2,110.1,112.1,113.4],17:[103.1,104.5,106.7,114.4,122.1,124.3,125.7],18:[113.2,114.8,117.2,125.6,134.0,136.4,138.0],19:[123.3,125.0,127.6,136.7,145.8,148.4,150.1],20:[133.4,135.2,138.0,147.7,157.5,160.3,162.1],21:[143.4,145.3,148.3,158.7,169.1,172.0,174.0],22:[153.5,155.5,158.6,169.6,180.6,183.7,185.7],23:[163.4,165.6,168.9,180.4,192.0,195.3,197.4],24:[173.3,175.6,179.0,191.2,203.3,206.8,209.0],25:[183.2,185.5,189.1,201.8,214.5,218.1,220.5],26:[192.9,195.4,199.1,212.4,225.7,229.5,231.9],27:[202.6,205.1,209.1,222.9,236.8,240.7,243.2],28:[212.1,214.7,218.8,233.3,247.8,251.9,254.5],29:[221.4,224.2,228.5,243.6,258.7,263.0,265.8],30:[230.6,233.5,238.0,253.8,269.6,274.1,277.0],31:[239.6,242.6,247.4,263.9,280.5,285.2,288.3],32:[248.4,251.6,256.5,273.9,291.3,296.3,299.5],33:[256.9,260.3,265.5,283.8,302.2,307.4,310.7],34:[265.2,268.7,274.3,293.6,313.0,318.5,322.0],35:[273.2,276.9,282.8,303.3,323.8,329.6,333.4],36:[280.8,284.8,291.0,312.8,334.6,340.9,344.9],37:[288.1,292.4,299.0,322.3,345.5,352.1,356.4],38:[295.1,299.6,306.7,331.6,356.4,363.5,368.1],39:[301.6,306.5,314.1,340.8,367.4,375.0,379.9],40:[307.7,312.9,321.1,349.8,378.5,386.7,392.0]} },
+    weight:  { minW: 22, maxW: 40, t: {22:[463,470,481,525,578,596,607],23:[516,524,538,592,658,680,694],24:[575,585,602,668,751,778,796],25:[642,654,675,756,857,891,913],26:[716,732,757,856,980,1020,1048],27:[800,818,848,969,1119,1168,1202],28:[892,915,951,1097,1277,1335,1376],29:[994,1021,1064,1239,1453,1521,1570],30:[1105,1138,1189,1396,1648,1728,1784],31:[1226,1265,1325,1568,1861,1953,2017],32:[1356,1401,1472,1755,2090,2195,2267],33:[1495,1547,1630,1954,2332,2450,2529],34:[1641,1700,1796,2162,2582,2713,2798],35:[1794,1860,1969,2378,2836,2978,3069],36:[1951,2024,2146,2594,3086,3237,3331],37:[2109,2190,2323,2806,3324,3480,3578],38:[2266,2355,2496,3006,3540,3697,3798],39:[2416,2516,2658,3186,3726,3876,3982],40:[2554,2670,2805,3338,3871,4006,4121]} }
+  };
+  // The seven centile values at an exact gestational age in days (linear between weeks), or null if outside the table
+  function refAt(key, days){
+    const r = FETAL_REF[key];
+    if (days == null || days < r.minW * 7 || days > r.maxW * 7) return null;
+    const w = Math.floor(days / 7), f = (days - w * 7) / 7;
+    const a = r.t[w], b = r.t[Math.min(w + 1, r.maxW)];
+    return a.map((v, i) => v + (b[i] - v) * f);
+  }
+  // Approximate percentile of a measurement, e.g. "P45", "<P3" or ">P97"
+  function approxPct(key, days, value){
+    const c = refAt(key, days);
+    if (!c || value === '' || value == null || isNaN(Number(value))) return '';
+    const v = Number(value);
+    if (v < c[0]) return '<P3';
+    if (v > c[6]) return '>P97';
+    for (let i = 0; i < 6; i++){
+      if (v <= c[i + 1]){
+        const p = REF_CENTILES[i] + (v - c[i]) / (c[i + 1] - c[i]) * (REF_CENTILES[i + 1] - REF_CENTILES[i]);
+        return 'P' + Math.round(p);
+      }
+    }
+    return '';
+  }
   // Gestational age in days for a scan: entered by hand, else worked out from the due date (280-day term)
   function fetalGaDays(f){
     if (f.gaWeeks !== '' && f.gaWeeks != null) return Number(f.gaWeeks) * 7 + (Number(f.gaDays) || 0);
@@ -1125,13 +1159,26 @@
     for (let v = lo; v <= hi + step / 2; v += step) out.push(Math.round(v * 1000) / 1000);
     return out;
   }
-  // points: [{ x, y, gaDays, date }]; x is gestational days (or a timestamp when useGa is false)
+  // points: [{ x, y, tip }]; x is gestational days (or a timestamp when on a date axis).
+  // opts.refKey, when set, draws the reference centile bands (x must then be gestational days).
   function lineChartSvg(points, opts){
     const W = 440, H = 230, L = 44, R = 14, T = 26, B = 34;
     const xs = points.map(p => p.x), ys = points.map(p => p.y);
-    let xMin = Math.min(...xs), xMax = Math.max(...xs);
-    if (xMin === xMax){ xMin -= opts.xPad; xMax += opts.xPad; }
+    let xMin = Math.min(...xs) - opts.xPad, xMax = Math.max(...xs) + opts.xPad;
+    // Reference band samples: at the ends of the visible range and at every whole week between
+    let band = [];
+    if (opts.refKey){
+      const r = FETAL_REF[opts.refKey];
+      const lo = Math.max(xMin, r.minW * 7), hi = Math.min(xMax, r.maxW * 7);
+      if (hi > lo){
+        const days = [lo];
+        for (let d = Math.ceil(lo / 7) * 7; d < hi; d += 7) if (d > lo) days.push(d);
+        days.push(hi);
+        band = days.map(d => ({ x: d, c: refAt(opts.refKey, d) }));
+      }
+    }
     let yLo = Math.min(...ys), yHi = Math.max(...ys);
+    band.forEach(b => { yLo = Math.min(yLo, b.c[0]); yHi = Math.max(yHi, b.c[6]); });
     if (yLo === yHi){ const pad = Math.abs(yLo) * 0.1 || 1; yLo -= pad; yHi += pad; }
     const yt = niceTicks(yLo, yHi, 4);
     const yMin = yt[0], yMax = yt[yt.length - 1];
@@ -1142,19 +1189,27 @@
     yt.forEach(v => { g += `<line x1="${L}" x2="${W - R}" y1="${sy(v)}" y2="${sy(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${sy(v) + 3.5}" text-anchor="end">${v}</text>`; });
     xt.forEach(t => { g += `<text x="${sx(t.v)}" y="${H - B + 16}" text-anchor="middle">${t.label}</text>`; });
     g += `<text x="4" y="11" style="font-weight:600">${opts.unit}</text>`;
+    if (band.length > 1){
+      const poly = (iLo, iHi) => band.map(b => sx(b.x).toFixed(1) + ',' + sy(b.c[iHi]).toFixed(1)).join(' ') + ' ' +
+        band.slice().reverse().map(b => sx(b.x).toFixed(1) + ',' + sy(b.c[iLo]).toFixed(1)).join(' ');
+      g += `<polygon points="${poly(0, 6)}" fill="${opts.color}" opacity="0.10"/>`;
+      g += `<polygon points="${poly(2, 4)}" fill="${opts.color}" opacity="0.18"/>`;
+      g += `<path d="${band.map((b, i) => (i ? 'L' : 'M') + sx(b.x).toFixed(1) + ' ' + sy(b.c[3]).toFixed(1)).join(' ')}" fill="none" stroke="${opts.color}" stroke-width="1.3" stroke-dasharray="4 3" opacity="0.8"/>`;
+    }
     const path = points.map((p, i) => (i ? 'L' : 'M') + sx(p.x).toFixed(1) + ' ' + sy(p.y).toFixed(1)).join(' ');
     const line = points.length > 1 ? `<path d="${path}" fill="none" stroke="${opts.color}" stroke-width="2.2" stroke-linejoin="round"/>` : '';
-    const dots = points.map(p => `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="4" fill="${opts.color}" stroke="var(--paper)" stroke-width="1.5"><title>${escapeHtml(p.tip)}</title></circle>`).join('');
+    const dots = points.map(p => `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="4.5" fill="${opts.color}" stroke="var(--paper)" stroke-width="1.5"><title>${escapeHtml(p.tip)}</title></circle>`).join('');
     return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(opts.title)} over time">${g}${line}${dots}</svg>`;
   }
+  const FETAL_DEFS = [
+    { key: 'femur', title: 'Femur length', unit: 'mm', color: 'var(--plum)' },
+    { key: 'abdomen', title: 'Abdominal circumference', unit: 'mm', color: 'var(--amber)' },
+    { key: 'weight', title: 'Estimated fetal weight', unit: 'g', color: 'var(--sage)' }
+  ];
   function renderFetalCharts(fetal){
     const el = document.getElementById('fetalCharts');
-    const defs = [
-      { key: 'femur', title: 'Femur length', unit: 'mm', color: 'var(--plum)' },
-      { key: 'abdomen', title: 'Abdominal circumference', unit: 'mm', color: 'var(--amber)' },
-      { key: 'weight', title: 'Estimated fetal weight', unit: 'g', color: 'var(--sage)' }
-    ];
-    el.innerHTML = defs.map(d => {
+    let anyBand = false, missingGa = false;
+    el.innerHTML = FETAL_DEFS.map(d => {
       const raw = fetal.filter(f => f[d.key] !== '' && f[d.key] != null && !isNaN(Number(f[d.key])));
       let body;
       if (!raw.length){
@@ -1162,40 +1217,79 @@
       } else {
         // Use gestational age on the x-axis when every point has one, otherwise fall back to the scan date
         const useGa = raw.every(f => fetalGaDays(f) != null);
+        if (!useGa) missingGa = true; else anyBand = true;
         const pts = raw.map(f => {
           const ga = fetalGaDays(f);
           const v = Number(f[d.key]);
+          const pct = approxPct(d.key, ga, v);
           return {
             x: useGa ? ga : new Date(f.date + 'T00:00:00').getTime(),
             y: v,
-            tip: `${fmtDate(f.date)}${ga != null ? ' \u00B7 ' + fmtGa(ga) : ''}: ${v} ${d.unit}`
+            tip: `${fmtDate(f.date)}${ga != null ? ' \u00B7 ' + fmtGa(ga) : ''}: ${v} ${d.unit}${pct ? ' (\u2248' + pct + ')' : ''}`
           };
         }).sort((a, b) => a.x - b.x);
         body = lineChartSvg(pts, {
           title: d.title, unit: d.unit, color: d.color,
-          xPad: useGa ? 7 : 7 * 86400000,
+          refKey: useGa ? d.key : null,
+          xPad: useGa ? 14 : 7 * 86400000,
           xTicks: useGa
-            ? (lo, hi) => { const out = []; for (let w = Math.ceil(lo / 7); w * 7 <= hi; w += Math.max(1, Math.ceil((hi - lo) / 7 / 6))) out.push({ v: w * 7, label: w + 'w' }); return out; }
+            ? (lo, hi) => { const out = []; const stepW = Math.max(1, Math.ceil((hi - lo) / 7 / 7)); for (let w = Math.ceil(lo / 7); w * 7 <= hi; w += stepW) out.push({ v: w * 7, label: w + 'w' }); return out; }
             : (lo, hi) => [0, 1, 2, 3].map(i => { const v = lo + (hi - lo) * i / 3; return { v, label: new Date(v).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) }; })
         });
       }
       return `<div class="fetal-chart"><h3>${d.title}</h3>${body}</div>`;
     }).join('');
+    const note = document.getElementById('fetalChartNote');
+    if (note){
+      note.innerHTML = (anyBand ? 'Shaded bands show the INTERGROWTH-21st reference range: darker = 10th\u201390th centile, lighter = 3rd\u201397th, dashed line = median (50th). ' : '') +
+        (missingGa ? 'Set your due date (or enter the gestation on each scan) to see the reference bands.' : '');
+    }
+  }
+  function fetalCell(f, key, unit, gaDays){
+    const v = f[key];
+    if (v === '' || v == null) return '\u2014';
+    const pct = approxPct(key, gaDays, v);
+    const shown = key === 'weight' ? Number(v).toLocaleString() : escapeHtml(String(v));
+    return `${shown} ${unit}${pct ? `<span class="pct">\u2248${escapeHtml(pct)}</span>` : ''}`;
   }
   function renderFetal(){
     const fetal = state.gynae.fetal || [];
     renderFetalCharts(fetal);
     const rows = document.getElementById('fetalRows');
-    rows.innerHTML = fetal.length ? fetal.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).map(f => `
+    rows.innerHTML = fetal.length ? fetal.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).map(f => {
+      if (editingBlocks.has('fetal::' + f.id)){
+        const inp = (k, v, type, w, extra) => `<input type="${type}" data-fetal-input="${k}" data-fetal-id="${f.id}" value="${escapeHtml(v ?? '')}" style="width:${w}px;" ${extra || ''} />`;
+        return `
+      <tr>
+        <td>${inp('date', f.date, 'date', 135)}</td>
+        <td>${inp('gaWeeks', f.gaWeeks, 'number', 56, 'min="0" max="45" placeholder="wk"')} ${inp('gaDays', f.gaDays, 'number', 48, 'min="0" max="6" placeholder="d"')}</td>
+        <td>${inp('femur', f.femur, 'number', 70, 'min="0" step="0.1"')}</td>
+        <td>${inp('abdomen', f.abdomen, 'number', 70, 'min="0" step="0.1"')}</td>
+        <td>${inp('weight', f.weight, 'number', 76, 'min="0"')}</td>
+        <td><input type="text" data-fetal-input="notes" data-fetal-id="${f.id}" value="${escapeHtml(f.notes || '')}" /></td>
+        <td>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <button class="btn-plum btn-small" data-save-fetal="${f.id}">Save</button>
+            <button class="btn-ghost btn-small" data-cancel-fetal="${f.id}">Cancel</button>
+          </div>
+        </td>
+      </tr>`;
+      }
+      const ga = fetalGaDays(f);
+      return `
       <tr>
         <td>${fmtDate(f.date)}</td>
-        <td>${fmtGa(fetalGaDays(f))}</td>
-        <td>${f.femur !== '' && f.femur != null ? escapeHtml(String(f.femur)) + ' mm' : '\u2014'}</td>
-        <td>${f.abdomen !== '' && f.abdomen != null ? escapeHtml(String(f.abdomen)) + ' mm' : '\u2014'}</td>
-        <td>${f.weight !== '' && f.weight != null ? Number(f.weight).toLocaleString() + ' g' : '\u2014'}</td>
+        <td>${fmtGa(ga)}</td>
+        <td>${fetalCell(f, 'femur', 'mm', ga)}</td>
+        <td>${fetalCell(f, 'abdomen', 'mm', ga)}</td>
+        <td>${fetalCell(f, 'weight', 'g', ga)}</td>
         <td>${escapeHtml(f.notes || '\u2014')}</td>
-        <td><button class="btn-danger-text" data-remove-fetal="${f.id}">Remove</button></td>
-      </tr>`).join('')
+        <td>
+          <button class="link-btn" data-edit-fetal="${f.id}">Edit</button>
+          <button class="btn-danger-text" data-remove-fetal="${f.id}">Remove</button>
+        </td>
+      </tr>`;
+    }).join('')
       : '<tr class="empty-row"><td colspan="7">No scans logged yet.</td></tr>';
   }
 
@@ -1938,9 +2032,27 @@
       saveKey('gynae-data', state.gynae); renderGynae();
     });
     document.getElementById('fetalRows').addEventListener('click', e => {
-      const id = e.target.dataset.removeFetal;
-      if (id){
-        state.gynae.fetal = state.gynae.fetal.filter(x => x.id !== id);
+      const d = e.target.dataset;
+      if (d.removeFetal){
+        state.gynae.fetal = state.gynae.fetal.filter(x => x.id !== d.removeFetal);
+        editingBlocks.delete('fetal::' + d.removeFetal);
+        saveKey('gynae-data', state.gynae); renderGynae();
+      } else if (d.editFetal){
+        editingBlocks.add('fetal::' + d.editFetal); renderFetal();
+      } else if (d.cancelFetal){
+        editingBlocks.delete('fetal::' + d.cancelFetal); renderFetal();
+      } else if (d.saveFetal){
+        const f = state.gynae.fetal.find(x => x.id === d.saveFetal);
+        if (f){
+          const get = k => document.querySelector(`[data-fetal-id="${d.saveFetal}"][data-fetal-input="${k}"]`);
+          const date = get('date').value;
+          if (!date){ get('date').focus(); return; }
+          f.date = date;
+          f.gaWeeks = get('gaWeeks').value; f.gaDays = get('gaDays').value;
+          f.femur = get('femur').value; f.abdomen = get('abdomen').value; f.weight = get('weight').value;
+          f.notes = get('notes').value.trim();
+        }
+        editingBlocks.delete('fetal::' + d.saveFetal);
         saveKey('gynae-data', state.gynae); renderGynae();
       }
     });
