@@ -658,7 +658,7 @@
       tasks: []
     },
     leave: {
-      birthDate: '', mDays: 5, fDays: 5, phCounts: true,
+      birthDate: '', mDays: 5, fDays: 5,
       m: { start: '', mode: 'continuous', flex: [] },
       f: { start: '', mode: 'continuous', flex: [] },
       spl: { mWeeks: null, mStart: '', fStart: '', mMode: 'continuous', fMode: 'continuous', mFlex: [], fFlex: [] }
@@ -1394,13 +1394,13 @@
   let leaveMonth = null; // first day of the month shown in the calendar
   let leaveMsg = '';     // explanation shown when a clicked day cannot be used
 
-  // A day the parent would normally work. When forLeave is true and "public holidays use up leave" is on,
-  // a public holiday on a working day still counts as a leave day, so it can be chosen.
-  function leaveIsWorkday(date, dpw, forLeave){
+  // A day the parent would normally work. Under MOM's flexible scheme, rest days and public holidays are
+  // not leave days, so they cannot be chosen and never use up a flexible day. (A public holiday inside a
+  // continuous block is simply part of the block.)
+  function leaveIsWorkday(date, dpw){
     const dow = LD.dow(date);
     if (dow === 0) return false;
     if (dow === 6 && Number(dpw) < 6) return false;
-    if (forLeave && state.leave.phCounts !== false) return true;
     return !LEAVE_HOLIDAYS[date];
   }
   function nextWorkday(after, dpw){
@@ -1428,7 +1428,7 @@
     };
     const markRange = (who, type, s, e) => { for (let d = s; d <= e; d = LD.add(d, 1)) mark(who, type, d); };
     const makePool = (id, who, type, label, count, ws, we, stored, dpw) => {
-      const ok = (stored || []).filter(d => d >= ws && d <= we && leaveIsWorkday(d, dpw, true)).sort();
+      const ok = (stored || []).filter(d => d >= ws && d <= we && leaveIsWorkday(d, dpw)).sort();
       const sel = ok.slice(0, count);
       const pool = { id, who, type, label, count, ws, we, dpw, sel };
       pools.push(pool);
@@ -1513,13 +1513,15 @@
     ];
     if (spl.m) targets.push({ id: 'mSpl', short: 'Shared \u2013 mother', cls: 'm-spl', who: 'm', mode: spl.m.mode, pool: spl.m.pool, startPath: 'spl.mStart', focus: spl.m.pool ? (spl.m.pool.sel[0] || spl.m.pool.ws) : spl.m.start, dpw: dpwM, ws: birth, we: win12, label: 'Mother \u2013 shared parental leave' });
     if (spl.f) targets.push({ id: 'fSpl', short: 'Shared \u2013 father', cls: 'f-spl', who: 'f', mode: spl.f.mode, pool: spl.f.pool, startPath: 'spl.fStart', focus: spl.f.pool ? (spl.f.pool.sel[0] || spl.f.pool.ws) : spl.f.start, dpw: dpwF, ws: birth, we: win12, label: 'Father \u2013 shared parental leave' });
-    // Public holidays on a working day that fall inside each parent's leave (they use up leave, they do not extend it)
+    // Public holidays on a working day that fall inside each parent's continuous leave blocks (they do not extend the leave)
     const isWorkDay = (d, dpw) => LD.dow(d) !== 0 && (LD.dow(d) !== 6 || dpw === 6);
+    const flexDay = { m: new Set(), f: new Set() };
+    pools.forEach(p => p.sel.forEach(d => flexDay[p.who].add(d)));
     const phInside = { m: [], f: [] };
     Object.keys(lanes).sort().forEach(d => {
       if (!LEAVE_HOLIDAYS[d]) return;
-      if (lanes[d].m && isWorkDay(d, dpwM)) phInside.m.push(d);
-      if (lanes[d].f && isWorkDay(d, dpwF)) phInside.f.push(d);
+      if (lanes[d].m && isWorkDay(d, dpwM) && !flexDay.m.has(d)) phInside.m.push(d);
+      if (lanes[d].f && isWorkDay(d, dpwF) && !flexDay.f.has(d)) phInside.f.push(d);
     });
     pools.forEach(p => { if (p.sel.length < p.count) warnings.push(p.label + ': ' + p.sel.length + ' of ' + p.count + ' days chosen so far.'); });
     return { birth, edd, rules, dpwM, dpwF, win12, lanes, warnings, pools, mat, pat, spl, mEarliest, targets, phInside };
@@ -1595,7 +1597,7 @@
       for (let n = 1; n <= days; n++){
         const date = first.slice(0, 8) + String(n).padStart(2, '0');
         const ln = plan.lanes[date] || {}, dow = LD.dow(date), ph = LEAVE_HOLIDAYS[date];
-        const inWin = picked && date >= picked.ws && date <= picked.we && (picked.pool ? date >= picked.pool.ws && date <= picked.pool.we && leaveIsWorkday(date, picked.dpw, true) : true);
+        const inWin = picked && date >= picked.ws && date <= picked.we && (picked.pool ? date >= picked.pool.ws && date <= picked.pool.we && leaveIsWorkday(date, picked.dpw) : true);
         const tip = [LD.nice(date), ph, date === plan.birth ? (L.birthDate ? 'Birth date' : 'Expected due date') : '', ln.m ? LN.m[ln.m] : '', ln.f ? LN.f[ln.f] : ''].filter(Boolean).join(' · ');
         cells += `<div class="lv-day${dow === 0 || dow === 6 ? ' we' : ''}${ph ? ' ph' : ''}${date === plan.birth ? ' birth' : ''}${inWin ? ' pickable' : ''}" data-lv-day="${date}" title="${escapeHtml(tip)}"><span class="n">${n}</span>${date === plan.birth ? '<span class="bb">👶</span>' : ''}${ph ? `<span class="phn">${escapeHtml(ph)}</span>` : ''}${ln.m ? `<i class="ln m m-${ln.m}"></i>` : ''}${ln.f ? `<i class="ln f f-${ln.f}"></i>` : ''}</div>`;
       }
@@ -1618,7 +1620,6 @@
         <div><label>Mother’s working days / week</label><select data-lv="mDays"><option value="5" ${plan.dpwM === 5 ? 'selected' : ''}>5 days</option><option value="6" ${plan.dpwM === 6 ? 'selected' : ''}>6 days</option></select></div>
         <div><label>Father’s working days / week</label><select data-lv="fDays"><option value="5" ${plan.dpwF === 5 ? 'selected' : ''}>5 days</option><option value="6" ${plan.dpwF === 6 ? 'selected' : ''}>6 days</option></select></div>
       </div>
-      <label style="display:flex; align-items:center; gap:8px; margin-top:6px; font-size:14.5px; cursor:pointer;"><input type="checkbox" data-lv="phCounts" ${L.phCounts !== false ? 'checked' : ''} style="width:auto;" /> Public holidays use up leave days (a holiday inside a leave period counts as leave)</label>
       ${when}
       <div class="stat-row" style="margin-top:14px;">
         <div class="stat"><div class="n">${rules.matWeeks} weeks</div><div class="l">Maternity leave (mother)</div></div>
@@ -1681,7 +1682,7 @@
         : 'Pick a leave type above, then click days on the calendar to place it.'}${leaveMsg ? `<div style="color:var(--danger); margin-top:4px;">${escapeHtml(leaveMsg)}</div>` : ''}</div>
       ${monthNav}
       <div class="lv-months">${monthHtml}</div>
-      ${plan.phInside.m.length || plan.phInside.f.length ? `<div class="fetal-note" style="margin-top:14px;"><strong>Public holidays inside leave</strong> (they use up leave days): ${[['Mother', plan.phInside.m], ['Father', plan.phInside.f]].filter(x => x[1].length).map(x => x[0] + ' \u2013 ' + x[1].length + ' (' + x[1].map(d => LEAVE_HOLIDAYS[d] + ' ' + LD.parse(d).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', timeZone: 'UTC' })).join(', ') + ')').join('; ')}.</div>` : ''}
+      ${plan.phInside.m.length || plan.phInside.f.length ? `<div class="fetal-note" style="margin-top:14px;"><strong>Public holidays inside continuous leave</strong> (part of the block, they do not extend it): ${[['Mother', plan.phInside.m], ['Father', plan.phInside.f]].filter(x => x[1].length).map(x => x[0] + ' \u2013 ' + x[1].length + ' (' + x[1].map(d => LEAVE_HOLIDAYS[d] + ' ' + LD.parse(d).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', timeZone: 'UTC' })).join(', ') + ')').join('; ')}.</div>` : ''}
       ${plan.warnings.length ? `<div style="margin-top:16px;"><strong style="font-size:14px;">Things to check</strong><ul style="margin:6px 0 0 18px; font-size:14px; color:var(--ink-soft);">${plan.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>` : ''}
       <p class="fetal-note" style="margin-top:16px;">Assumes a Singapore citizen child and parents who have worked for their employer for at least 3 months before the birth. Splitting leave into days or taking it later needs your employer’s agreement, and 4 weeks’ notice is required. Public holidays are only listed up to Dec 2027 (later years are not yet gazetted). This is a planning aid – confirm the details with your employer and MOM.
       Sources: MOM – <a href="https://www.mom.gov.sg/employment-practices/leave/maternity-leave/eligibility-and-entitlement" target="_blank" rel="noopener">maternity leave</a>, <a href="https://www.mom.gov.sg/employment-practices/leave/maternity-leave/planning-your-leave" target="_blank" rel="noopener">planning maternity leave</a>, <a href="https://www.mom.gov.sg/employment-practices/leave/paternity-leave" target="_blank" rel="noopener">paternity leave</a>, <a href="https://www.mom.gov.sg/employment-practices/leave/shared-parental-leave" target="_blank" rel="noopener">shared parental leave</a>, <a href="https://www.mom.gov.sg/newsroom/press-releases/2026/0618-public-holidays-for-2027" target="_blank" rel="noopener">public holidays 2027</a>.</p>
@@ -1742,7 +1743,7 @@
         if (!t) return say('First choose which leave to place (Maternal, Paternal or Shared) using the buttons above the calendar.');
         if (t.pool){
           if (date < t.pool.ws || date > t.pool.we) return say(t.label + ': choose a day between ' + LD.nice(t.pool.ws) + ' and ' + LD.nice(t.pool.we) + '.');
-          if (!leaveIsWorkday(date, t.dpw, true)) return say(LD.dow(date) === 0 || LD.dow(date) === 6 ? 'Weekends are not working days, so they cannot be chosen as flexible leave days.' : 'Public holidays are turned off as leave days (see the tick box at the top).');
+          if (!leaveIsWorkday(date, t.dpw)) return say(LEAVE_HOLIDAYS[date] ? LEAVE_HOLIDAYS[date] + ' is a public holiday. Under the flexible scheme public holidays do not use up leave, so it cannot be chosen.' : 'Weekends and rest days are not working days, so they cannot be chosen as flexible leave days.');
           const arr = poolArray(t.id);
           const i = arr.indexOf(date);
           if (i >= 0) arr.splice(i, 1);
