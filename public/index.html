@@ -1422,7 +1422,9 @@
     const dpwM = Number(L.mDays) || 5, dpwF = Number(L.fDays) || 5;
     const win12 = LD.add(LD.addMonths(birth, 12), -1);   // flexible leave must be used within 12 months of birth
     const lanes = {}, warnings = [], pools = [];
+    const typeSets = { mMat: new Set(), fPat: new Set(), mSpl: new Set(), fSpl: new Set() };
     const mark = (who, type, date) => {
+      typeSets[who + type.charAt(0).toUpperCase() + type.slice(1)].add(date);
       const o = (lanes[date] = lanes[date] || {});
       if (!o[who] || type !== 'spl') o[who] = type;
     };
@@ -1535,7 +1537,242 @@
       if (lanes[d].f && isWorkDay(d, dpwF) && !flexDay.f.has(d)) phInside.f.push(d);
     });
     pools.forEach(p => { if (p.sel.length < p.count) warnings.push(p.label + ': ' + p.sel.length + ' of ' + p.count + ' days chosen so far.'); });
-    return { birth, edd, rules, dpwM, dpwF, win12, lanes, warnings, pools, mat, pat, spl, mEarliest, targets, phInside };
+    const typeDays = {};
+    Object.keys(typeSets).forEach(k => { typeDays[k] = Array.from(typeSets[k]).sort(); });
+    return { birth, edd, rules, dpwM, dpwF, win12, lanes, warnings, pools, mat, pat, spl, mEarliest, targets, phInside, typeDays };
+  }
+
+  /* ---------- PARENTAL LEAVE: PDF EXPORT ---------- */
+  const LEAVE_TYPES = {
+    mMat: { name: 'Maternity leave (mother)', short: 'Maternity', color: '--plum', soft: '--plum-soft', solid: true },
+    fPat: { name: 'Paternity leave (father)', short: 'Paternity', color: '--sage', soft: '--sage-soft', solid: true },
+    mSpl: { name: 'Shared parental leave (mother)', short: 'Shared – mother', color: '--plum', soft: '--plum-soft', solid: false },
+    fSpl: { name: 'Shared parental leave (father)', short: 'Shared – father', color: '--sage', soft: '--sage-soft', solid: false }
+  };
+  let leaveExport = { types: { mMat: true, fPat: true, mSpl: true, fSpl: true }, report: true, details: true, calendar: true };
+
+  function loadJsPdf(){
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+    return new Promise((resolve, reject) => {
+      const el = document.createElement('script');
+      el.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      el.onload = () => (window.jspdf && window.jspdf.jsPDF ? resolve(window.jspdf.jsPDF) : reject(new Error('PDF library did not load')));
+      el.onerror = () => reject(new Error('Could not load the PDF library (check your internet connection)'));
+      document.head.appendChild(el);
+    });
+  }
+  const pdfDate = d => LD.parse(d).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+  // Consumed / remaining figures for each leave type in the plan.
+  // "Days" are calendar days inside a continuous block and working days for flexible leave days.
+  function leaveReport(plan, today){
+    const rows = [];
+    const add = (key, o) => {
+      const days = plan.typeDays[key];
+      const planned = days.length;
+      const taken = days.filter(d => d <= today).length;
+      rows.push(Object.assign({
+        key, name: LEAVE_TYPES[key].name, planned, taken,
+        remaining: Math.max(0, o.ent - planned), toTake: planned - taken,
+        first: days[0] || null, last: days[days.length - 1] || null
+      }, o));
+    };
+    const { rules, mat, pat, spl } = plan;
+    if (mat.mode === 'flexible'){
+      add('mMat', { ent: rules.matFlexWeeks * 7 + mat.pool.count, entText: rules.matWeeks + ' weeks: ' + rules.matFlexWeeks + '-week block (' + rules.matFlexWeeks * 7 + ' days) + ' + mat.pool.count + ' flexible working days', how: 'First 8 weeks continuous, last 8 weeks flexible', notice: mat.notice, back: mat.back });
+    } else {
+      add('mMat', { ent: rules.matWeeks * 7, entText: rules.matWeeks + ' weeks continuous (' + rules.matWeeks * 7 + ' days)', how: rules.matWeeks + ' weeks continuous', notice: mat.notice, back: mat.back });
+    }
+    const half = rules.patWeeks / 2;
+    if (pat.mode === 'flexible') add('fPat', { ent: pat.pool.count, entText: rules.patWeeks + ' weeks as flexible working days (' + pat.pool.count + ' days)', how: 'All flexible days (employer agrees)', notice: pat.notice, back: pat.back });
+    else if (pat.mode === 'split22') add('fPat', { ent: half * 7 + pat.pool.count, entText: rules.patWeeks + ' weeks: ' + half + '-week block (' + half * 7 + ' days) + ' + pat.pool.count + ' flexible working days', how: half + '-week block + ' + half + ' weeks flexible days', notice: pat.notice, back: pat.back });
+    else add('fPat', { ent: rules.patWeeks * 7, entText: rules.patWeeks + ' weeks continuous (' + rules.patWeeks * 7 + ' days)', how: pat.mode === 'block12' ? 'Continuous, any time within 12 months (employer agrees)' : 'Continuous, within 16 weeks of birth', notice: pat.notice, back: pat.back });
+    [['mSpl', spl.m], ['fSpl', spl.f]].forEach(([key, o]) => {
+      if (!o) return;
+      if (o.mode === 'flexible') add(key, { ent: o.pool.count, entText: o.weeks + ' weeks as flexible working days (' + o.pool.count + ' days)', how: 'Flexible days (employer agrees)', notice: o.notice, back: o.back });
+      else add(key, { ent: o.weeks * 7, entText: o.weeks + ' weeks continuous (' + o.weeks * 7 + ' days)', how: 'Continuous block', notice: o.notice, back: o.back });
+    });
+    return rows;
+  }
+
+  function cssRgb(name, fallback){
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+    const h = v.replace('#', '');
+    return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  }
+
+  async function exportLeavePdf(){
+    const msg = document.getElementById('lvExportMsg');
+    const say = (t, bad) => { if (msg){ msg.textContent = t; msg.style.color = bad ? 'var(--danger)' : 'var(--ink-soft)'; } };
+    const plan = computeLeave();
+    if (!plan) return say('Set your due date first.', true);
+    const chosen = Object.keys(LEAVE_TYPES).filter(k => leaveExport.types[k] && (k === 'mMat' || k === 'fPat' || (k === 'mSpl' ? plan.spl.m : plan.spl.f)));
+    if (!chosen.length) return say('Tick at least one type of leave to export.', true);
+    if (!leaveExport.report && !leaveExport.details && !leaveExport.calendar) return say('Tick at least one thing to include (summary, details or calendar).', true);
+    say('Preparing your PDF…');
+    let jsPDF;
+    try { jsPDF = await loadJsPdf(); } catch (e) { return say(e.message, true); }
+
+    const C = n => cssRgb('--' + n.replace(/^--/, ''), '#000000');
+    const ink = C('ink'), soft = C('ink-soft'), line = C('line'), wine = C('wine'), amberSoft = C('amber-soft'), amber = C('amber');
+    const today = new Date().toLocaleDateString('en-CA');
+    const rows = leaveReport(plan, today).filter(r => chosen.includes(r.key));
+    const wantPortrait = leaveExport.report || leaveExport.details;
+    const doc = new jsPDF({ orientation: wantPortrait ? 'portrait' : 'landscape', unit: 'mm', format: 'a4' });
+    const fill = c => doc.setFillColor(c[0], c[1], c[2]);
+    const stroke = c => doc.setDrawColor(c[0], c[1], c[2]);
+    const tcol = c => doc.setTextColor(c[0], c[1], c[2]);
+    const font = (style, size) => { doc.setFont('helvetica', style); doc.setFontSize(size); };
+    const mix = (c, k) => c.map(v => Math.round(v + (255 - v) * k));
+    const L = plan;
+
+    // ---------- Report pages ----------
+    if (wantPortrait){
+      let y = 18;
+      font('bold', 20); tcol(ink); doc.text('Parental leave plan', 14, y);
+      font('normal', 9.5); tcol(soft);
+      y += 7; doc.text((state.leave.birthDate ? 'Birth date: ' + pdfDate(state.leave.birthDate) : 'Expected due date: ' + pdfDate(plan.birth)) + '   |   Prepared ' + pdfDate(today) + '   |   Singapore (MOM rules)', 14, y);
+      y += 5; doc.text('Working days per week: mother ' + plan.dpwM + ', father ' + plan.dpwF + '   |   Entitlement: maternity ' + L.rules.matWeeks + ' wks, paternity ' + L.rules.patWeeks + ' wks, shared ' + L.rules.splWeeks + ' wks', 14, y);
+      y += 4; stroke(line); doc.setLineWidth(0.3); doc.line(14, y, 196, y);
+
+      const need = h => { if (y + h > 280){ doc.addPage('a4', 'portrait'); y = 18; } };
+      if (leaveExport.report){
+        y += 9; font('bold', 13); tcol(ink); doc.text('Leave summary', 14, y);
+        y += 3; font('normal', 8.5); tcol(soft);
+        const note = doc.splitTextToSize('Days are calendar days inside a continuous block and working days for flexible leave days. "Taken" counts days up to ' + pdfDate(today) + '.', 182);
+        y += 4; doc.text(note, 14, y); y += note.length * 3.6 + 2;
+        const cols = [{ t: 'Leave', x: 14, w: 38 }, { t: 'Entitlement', x: 52, w: 50 }, { t: 'Planned', x: 102, w: 16, r: true }, { t: 'To plan', x: 118, w: 16, r: true }, { t: 'Taken', x: 134, w: 14, r: true }, { t: 'To take', x: 148, w: 14, r: true }, { t: 'Progress', x: 166, w: 30 }];
+        fill(C('cream')); doc.rect(14, y, 182, 7, 'F');
+        font('bold', 8.5); tcol(ink);
+        cols.forEach(c => doc.text(c.t, c.r ? c.x + c.w - 1 : c.x + 1.5, y + 4.7, c.r ? { align: 'right' } : undefined));
+        y += 7;
+        rows.forEach(r => {
+          font('normal', 9);
+          const nameL = doc.splitTextToSize(r.name, 35), entL = doc.splitTextToSize(r.entText, 47);
+          const h = Math.max(nameL.length, entL.length) * 4.1 + 5;
+          need(h);
+          tcol(ink); font('bold', 9); doc.text(nameL, 15.5, y + 5);
+          font('normal', 9); doc.text(entL, 53.5, y + 5);
+          [r.planned, r.remaining, r.taken, r.toTake].forEach((v, i) => { const c = cols[2 + i]; doc.text(String(v), c.x + c.w - 1, y + 5, { align: 'right' }); });
+          const col = C(LEAVE_TYPES[r.key].color), bx = 167.5, bw = 27, by = y + 3.2;
+          stroke(col); doc.setLineWidth(0.3); fill([255, 255, 255]); doc.rect(bx, by, bw, 3.6, 'FD');
+          if (r.ent > 0){
+            fill(mix(col, 0.55)); doc.rect(bx, by, bw * Math.min(1, r.planned / r.ent), 3.6, 'F');
+            fill(col); if (r.taken > 0) doc.rect(bx, by, bw * Math.min(1, r.taken / r.ent), 3.6, 'F');
+            doc.rect(bx, by, bw, 3.6, 'S');
+            font('normal', 7); tcol(soft); doc.text(Math.round(Math.min(1, r.planned / r.ent) * 100) + '% planned', bx, by + 7.4);
+          }
+          y += h; stroke(line); doc.setLineWidth(0.2); doc.line(14, y, 196, y);
+        });
+        // Shared pool line
+        if (rows.some(r => r.key === 'mSpl' || r.key === 'fSpl')){
+          y += 6; need(12); font('normal', 8.5); tcol(soft);
+          const t = doc.splitTextToSize('Shared parental leave pool: ' + L.spl.total + ' weeks in all. Allocated ' + L.spl.mW + ' week(s) to the mother and ' + L.spl.fW + ' week(s) to the father (default is half each; changing it more than 4 weeks after the birth needs written employer agreement).', 182);
+          doc.text(t, 14, y); y += t.length * 3.6;
+        }
+        // legend of bar
+        y += 5; need(8); font('normal', 7.5); tcol(soft);
+        doc.text('Progress bar: solid = days already taken, tinted = planned in the calendar, empty = still to plan.', 14, y); y += 4;
+      }
+
+      if (leaveExport.details){
+        y += 8; need(40); font('bold', 13); tcol(ink); doc.text('Plan details', 14, y);
+        y += 4;
+        const cols = [{ t: 'Leave', x: 14, w: 36 }, { t: 'How it is taken', x: 50, w: 52 }, { t: 'Starts', x: 102, w: 24 }, { t: 'Ends / last day', x: 126, w: 24 }, { t: 'Notify by', x: 150, w: 24 }, { t: 'Back at work', x: 174, w: 22 }];
+        fill(C('cream')); doc.rect(14, y, 182, 7, 'F'); font('bold', 8.5); tcol(ink);
+        cols.forEach(c => doc.text(c.t, c.x + 1.5, y + 4.7)); y += 7;
+        rows.forEach(r => {
+          font('normal', 9);
+          const nameL = doc.splitTextToSize(r.name, 33), howL = doc.splitTextToSize(r.how, 49);
+          const h = Math.max(nameL.length, howL.length) * 4.1 + 5;
+          need(h);
+          tcol(ink); font('bold', 9); doc.text(nameL, 15.5, y + 5);
+          font('normal', 9); doc.text(howL, 51.5, y + 5);
+          [r.first ? pdfDate(r.first) : '-', r.last ? pdfDate(r.last) : '-', r.notice ? pdfDate(r.notice) : '-', r.back ? pdfDate(r.back) : '-'].forEach((v, i) => doc.text(v, cols[2 + i].x + 1.5, y + 5));
+          y += h; stroke(line); doc.setLineWidth(0.2); doc.line(14, y, 196, y);
+        });
+        const notes = L.warnings.filter(w => !/chosen so far/.test(w));
+        if (notes.length){
+          y += 8; need(14); font('bold', 10.5); tcol(ink); doc.text('Things to check', 14, y); y += 5; font('normal', 8.5); tcol(soft);
+          notes.forEach(w => { const t = doc.splitTextToSize('• ' + w, 180); need(t.length * 3.8 + 1); doc.text(t, 15, y); y += t.length * 3.8 + 1; });
+        }
+      }
+      y += 8; need(24); font('normal', 7.5); tcol(soft);
+      const fine = doc.splitTextToSize('Assumes a Singapore citizen child and parents with at least 3 months’ service. Splitting leave into days or taking it later needs your employer’s agreement, and 4 weeks’ notice is required. Public holidays in a flexible arrangement do not use up leave days; inside a continuous block they are part of it. This is a planning aid – please confirm details with your employer and MOM (mom.gov.sg, profamilyleave.msf.gov.sg).', 182);
+      doc.text(fine, 14, y);
+    }
+
+    // ---------- Year calendars ----------
+    if (leaveExport.calendar){
+      const cell = {};   // date -> { m: key, f: key }
+      ['mSpl', 'fSpl', 'mMat', 'fPat'].forEach(key => {
+        if (!chosen.includes(key)) return;
+        plan.typeDays[key].forEach(d => { (cell[d] = cell[d] || {})[key[0]] = key; });
+      });
+      const dates = Object.keys(cell).concat([plan.birth]).sort();
+      const y0 = +dates[0].slice(0, 4), y1 = +dates[dates.length - 1].slice(0, 4);
+      for (let yr = y0; yr <= y1; yr++){
+        if (wantPortrait || yr > y0) doc.addPage('a4', 'landscape');
+        else if (doc.getNumberOfPages() === 1) { /* first page already landscape */ }
+        font('bold', 18); tcol(ink); doc.text(yr + ' – leave calendar', 10, 15);
+        font('normal', 9); tcol(soft);
+        doc.text(chosen.map(k => LEAVE_TYPES[k].short).join('  |  '), 10, 20.5);
+        const bw = 65, gap = 5.6, cw = bw / 7, ch = 7.2, x0 = 10, yTop = 25;
+        for (let m = 0; m < 12; m++){
+          const first = yr + '-' + String(m + 1).padStart(2, '0') + '-01';
+          const bx = x0 + (m % 4) * (bw + gap), by = yTop + Math.floor(m / 4) * 56;
+          font('bold', 9.5); tcol(ink);
+          doc.text(LD.parse(first).toLocaleDateString('en-SG', { month: 'long', timeZone: 'UTC' }), bx, by + 3.5);
+          font('bold', 6.5); tcol(soft);
+          ['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach((w, i) => doc.text(w, bx + i * cw + cw / 2, by + 8, { align: 'center' }));
+          const lead = (LD.dow(first) + 6) % 7;
+          const days = new Date(Date.UTC(yr, m + 1, 0)).getUTCDate();
+          for (let n = 1; n <= days; n++){
+            const date = first.slice(0, 8) + String(n).padStart(2, '0');
+            const idx = lead + n - 1, cx = bx + (idx % 7) * cw, cy = by + 9.5 + Math.floor(idx / 7) * ch;
+            const dow = LD.dow(date), ph = LEAVE_HOLIDAYS[date];
+            if (ph) fill(amberSoft); else if (dow === 0 || dow === 6) fill([244, 241, 234]); else fill([255, 255, 255]);
+            stroke(line); doc.setLineWidth(0.15); doc.rect(cx, cy, cw, ch, 'FD');
+            const lane = cell[date] || {};
+            [['m', ch - 4.1], ['f', ch - 2.0]].forEach(([who, off]) => {
+              const key = lane[who]; if (!key) return;
+              const t = LEAVE_TYPES[key], col = C(t.color);
+              if (t.solid){ fill(col); doc.rect(cx + 0.6, cy + off, cw - 1.2, 1.7, 'F'); }
+              else { fill(C(t.soft)); stroke(col); doc.setLineWidth(0.25); doc.rect(cx + 0.6, cy + off, cw - 1.2, 1.7, 'FD'); }
+            });
+            font(ph ? 'bold' : 'normal', 6.8); tcol(ph ? amber : (dow === 0 || dow === 6 ? soft : ink));
+            doc.text(String(n), cx + 1, cy + 2.7);
+            if (date === plan.birth){ stroke(wine); doc.setLineWidth(0.5); doc.rect(cx + 0.2, cy + 0.2, cw - 0.4, ch - 0.4, 'S'); }
+          }
+        }
+        // legend + holidays
+        let lx = 10; const ly = 189;
+        chosen.forEach(k => {
+          const t = LEAVE_TYPES[k], col = C(t.color);
+          if (t.solid){ fill(col); doc.rect(lx, ly - 2.2, 7, 2.2, 'F'); } else { fill(C(t.soft)); stroke(col); doc.setLineWidth(0.25); doc.rect(lx, ly - 2.2, 7, 2.2, 'FD'); }
+          font('normal', 7.5); tcol(ink); doc.text(t.short + (k[0] === 'm' ? ' (top bar)' : ' (lower bar)'), lx + 9, ly - 0.3);
+          lx += 11 + doc.getTextWidth(t.short + (k[0] === 'm' ? ' (top bar)' : ' (lower bar)')) + 4;
+        });
+        fill(amberSoft); stroke(line); doc.setLineWidth(0.15); doc.rect(lx, ly - 2.6, 4, 3, 'FD'); font('normal', 7.5); tcol(ink); doc.text('Public holiday', lx + 6, ly - 0.3);
+        lx += 6 + doc.getTextWidth('Public holiday') + 6;
+        stroke(wine); doc.setLineWidth(0.5); doc.rect(lx, ly - 2.6, 4, 3, 'S'); doc.text(state.leave.birthDate ? 'Birth date' : 'Due date', lx + 6, ly - 0.3);
+        const phs = Object.keys(LEAVE_HOLIDAYS).filter(d => d.startsWith(String(yr))).sort().map(d => parseInt(d.slice(8), 10) + ' ' + LD.parse(d).toLocaleDateString('en-SG', { month: 'short', timeZone: 'UTC' }) + ' ' + LEAVE_HOLIDAYS[d]);
+        font('normal', 6.8); tcol(soft);
+        doc.text(doc.splitTextToSize(phs.length ? 'Public holidays: ' + phs.join('; ') + '.' : 'Public holidays for this year have not been gazetted yet.', 277), 10, ly + 5);
+      }
+    }
+
+    // page footers
+    const n = doc.getNumberOfPages();
+    for (let i = 1; i <= n; i++){
+      doc.setPage(i);
+      const w = doc.internal.pageSize.getWidth(), h = doc.internal.pageSize.getHeight();
+      font('normal', 7.5); tcol(soft);
+      doc.text('Nestled – Parental leave plan', 10, h - 6);
+      doc.text('Page ' + i + ' of ' + n, w - 10, h - 6, { align: 'right' });
+    }
+    doc.save('Parental_leave_plan.pdf');
+    say('PDF downloaded (' + n + ' page' + (n === 1 ? '' : 's') + ').');
   }
 
   function lvRow(k, v){ return `<tr><td style="color:var(--ink-soft); padding-right:14px; white-space:nowrap;">${k}</td><td>${v}</td></tr>`; }
@@ -1702,6 +1939,22 @@
       <div class="lv-months">${monthHtml}</div>
       ${plan.phInside.m.length || plan.phInside.f.length ? `<div class="fetal-note" style="margin-top:14px;"><strong>Public holidays inside continuous leave</strong> (part of the block, they do not extend it): ${[['Mother', plan.phInside.m], ['Father', plan.phInside.f]].filter(x => x[1].length).map(x => x[0] + ' \u2013 ' + x[1].length + ' (' + x[1].map(d => LEAVE_HOLIDAYS[d] + ' ' + LD.parse(d).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', timeZone: 'UTC' })).join(', ') + ')').join('; ')}.</div>` : ''}
       ${plan.warnings.length ? `<div style="margin-top:16px;"><strong style="font-size:14px;">Things to check</strong><ul style="margin:6px 0 0 18px; font-size:14px; color:var(--ink-soft);">${plan.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>` : ''}
+      <div class="lv-export" style="margin-top:22px; padding-top:16px; border-top:1px solid var(--line);">
+        <strong style="font-size:15px;">Export to PDF</strong>
+        <div class="sub" style="margin-top:2px;">Choose which leave to include. The PDF has a summary report (leave planned, taken and still to plan), plan details, and one calendar page for each year the leave covers.</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px 22px; margin:10px 0 4px; font-size:14px;">
+          <strong style="width:100%; font-size:13px; color:var(--ink-soft);">Leave types</strong>
+          ${['mMat', 'fPat', 'mSpl', 'fSpl'].map(k => { const avail = k === 'mMat' || k === 'fPat' || (k === 'mSpl' ? plan.spl.m : plan.spl.f); return `<label style="${avail ? '' : 'opacity:.5;'}"><input type="checkbox" data-lv-exp="types.${k}" ${avail && leaveExport.types[k] ? 'checked' : ''} ${avail ? '' : 'disabled'}> ${LEAVE_TYPES[k].name}</label>`; }).join('')}
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px 22px; margin:8px 0 12px; font-size:14px;">
+          <strong style="width:100%; font-size:13px; color:var(--ink-soft);">Include</strong>
+          <label><input type="checkbox" data-lv-exp="report" ${leaveExport.report ? 'checked' : ''}> Summary report (days used and remaining)</label>
+          <label><input type="checkbox" data-lv-exp="details" ${leaveExport.details ? 'checked' : ''}> Plan details and dates</label>
+          <label><input type="checkbox" data-lv-exp="calendar" ${leaveExport.calendar ? 'checked' : ''}> Year calendar(s)</label>
+        </div>
+        <button class="btn-plum" data-lv-export>Download PDF</button>
+        <span id="lvExportMsg" style="margin-left:10px; font-size:13.5px; color:var(--ink-soft);"></span>
+      </div>
       <p class="fetal-note" style="margin-top:16px;">Assumes a Singapore citizen child and parents who have worked for their employer for at least 3 months before the birth. Splitting leave into days or taking it later needs your employer’s agreement, and 4 weeks’ notice is required. Public holidays are only listed up to Dec 2027 (later years are not yet gazetted). This is a planning aid – confirm the details with your employer and MOM.
       Sources: MOM – <a href="https://www.mom.gov.sg/employment-practices/leave/maternity-leave/eligibility-and-entitlement" target="_blank" rel="noopener">maternity leave</a>, <a href="https://www.mom.gov.sg/employment-practices/leave/maternity-leave/planning-your-leave" target="_blank" rel="noopener">planning maternity leave</a>, <a href="https://www.mom.gov.sg/employment-practices/leave/paternity-leave" target="_blank" rel="noopener">paternity leave</a>, <a href="https://www.mom.gov.sg/employment-practices/leave/shared-parental-leave" target="_blank" rel="noopener">shared parental leave</a>, <a href="https://www.profamilyleave.msf.gov.sg/schemes/shared-parental-leave" target="_blank" rel="noopener">MSF shared parental leave</a>, <a href="https://www.mom.gov.sg/newsroom/press-releases/2026/0618-public-holidays-for-2027" target="_blank" rel="noopener">public holidays 2027</a>.</p>
     </div>`;
@@ -1712,6 +1965,11 @@
     const poolArray = id => ({ mMat: state.leave.m.flex, fPat: state.leave.f.flex, mSpl: state.leave.spl.mFlex, fSpl: state.leave.spl.fFlex })[id];
     root.addEventListener('change', e => {
       if (e.target.dataset.lvMonthsel !== undefined){ leaveMonth = e.target.value; renderLeave(); return; }
+      if (e.target.dataset.lvExp){
+        const ks = e.target.dataset.lvExp.split('.');
+        if (ks.length === 2) leaveExport[ks[0]][ks[1]] = e.target.checked; else leaveExport[ks[0]] = e.target.checked;
+        return;
+      }
       const path = e.target.dataset.lv;
       if (!path) return;
       let v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -1725,6 +1983,7 @@
       saveKey('leave-data', state.leave); renderLeave();
     });
     root.addEventListener('click', e => {
+      if (e.target.closest('[data-lv-export]')){ exportLeavePdf(); return; }
       const nav = e.target.closest('[data-lv-month]');
       if (nav){
         const plan = computeLeave();
