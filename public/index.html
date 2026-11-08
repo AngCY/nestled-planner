@@ -1549,7 +1549,7 @@
     mSpl: { name: 'Shared parental leave (mother)', short: 'Shared – mother', color: '--plum', soft: '--plum-soft', solid: false },
     fSpl: { name: 'Shared parental leave (father)', short: 'Shared – father', color: '--sage', soft: '--sage-soft', solid: false }
   };
-  let leaveExport = { types: { mMat: true, fPat: true, mSpl: true, fSpl: true }, report: true, details: true, calendar: true };
+  let leaveExport = { types: { mMat: true, fPat: true, mSpl: true, fSpl: true }, report: true, details: true, calendar: true, layout: 'year' };
 
   function loadJsPdf(){
     if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
@@ -1711,6 +1711,52 @@
       });
       const dates = Object.keys(cell).concat([plan.birth]).sort();
       const y0 = +dates[0].slice(0, 4), y1 = +dates[dates.length - 1].slice(0, 4);
+      if (leaveExport.layout === 'month'){
+        let cy0 = y0, cm0 = +dates[0].slice(5, 7) - 1;
+        const last = dates[dates.length - 1], cy1 = +last.slice(0, 4), cm1 = +last.slice(5, 7) - 1;
+        let first = true;
+        for (let yr = cy0, m = cm0; yr < cy1 || (yr === cy1 && m <= cm1); m++){
+          if (m > 11){ m = 0; yr++; if (yr > cy1 || (yr === cy1 && m > cm1)) break; }
+          if (wantPortrait || !first) doc.addPage('a4', 'landscape');
+          first = false;
+          const mm = String(m + 1).padStart(2, '0'), firstDay = yr + '-' + mm + '-01';
+          font('bold', 20); tcol(ink);
+          doc.text(LD.parse(firstDay).toLocaleDateString('en-SG', { month: 'long', year: 'numeric', timeZone: 'UTC' }), 10, 15);
+          font('normal', 9); tcol(soft);
+          doc.text(chosen.map(k => LEAVE_TYPES[k].short).join('  |  '), 10, 20.5);
+          const cw = 277 / 7, ch = 25, x0 = 10, yTop = 33;
+          font('bold', 8.5); tcol(soft);
+          ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].forEach((w, i) => doc.text(w, x0 + i * cw + cw / 2, yTop - 2, { align: 'center' }));
+          const lead = (LD.dow(firstDay) + 6) % 7, days = new Date(Date.UTC(yr, m + 1, 0)).getUTCDate();
+          for (let n = 1; n <= days; n++){
+            const date = yr + '-' + mm + '-' + String(n).padStart(2, '0');
+            const idx = lead + n - 1, cx = x0 + (idx % 7) * cw, cy = yTop + Math.floor(idx / 7) * ch;
+            const dow = LD.dow(date), ph = LEAVE_HOLIDAYS[date];
+            if (ph) fill(amberSoft); else if (dow === 0 || dow === 6) fill([244, 241, 234]); else fill([255, 255, 255]);
+            stroke(line); doc.setLineWidth(0.2); doc.rect(cx, cy, cw, ch, 'FD');
+            font(ph ? 'bold' : 'normal', 10); tcol(ph ? amber : (dow === 0 || dow === 6 ? soft : ink));
+            doc.text(String(n), cx + 1.8, cy + 5);
+            if (ph){ font('normal', 6); tcol(amber); doc.text(doc.splitTextToSize(ph, cw - 3).slice(0, 2), cx + 1.8, cy + 9); }
+            const lane = cell[date] || {};
+            [['m', ch - 10.5], ['f', ch - 5.2]].forEach(([who, off]) => {
+              const key = lane[who]; if (!key) return;
+              const t = LEAVE_TYPES[key], col = C(t.color);
+              if (t.solid){ fill(col); doc.rect(cx + 1, cy + off, cw - 2, 4.4, 'F'); }
+              else { fill(C(t.soft)); stroke(col); doc.setLineWidth(0.3); doc.rect(cx + 1, cy + off, cw - 2, 4.4, 'FD'); }
+              font('normal', 6); tcol(t.solid ? [255, 255, 255] : ink); doc.text(t.short, cx + 2, cy + off + 3);
+            });
+            if (date === plan.birth){
+              stroke(wine); doc.setLineWidth(0.7); doc.rect(cx + 0.3, cy + 0.3, cw - 0.6, ch - 0.6, 'S');
+              font('bold', 6.5); tcol(wine); doc.text(state.leave.birthDate ? 'Birth date' : 'Due date', cx + cw - 1.8, cy + 4.6, { align: 'right' });
+            }
+          }
+          const ly = 192;
+          font('normal', 7.5); tcol(soft);
+          doc.text('Top bar on each day: mother. Lower bar: father. Solid = maternity / paternity; outlined = shared parental leave.', 10, ly);
+          const cnt = chosen.map(k => LEAVE_TYPES[k].short + ': ' + plan.typeDays[k].filter(d => d.startsWith(yr + '-' + mm)).length + ' day(s) this month');
+          doc.text(cnt.join('   |   '), 10, ly + 4.5);
+        }
+      } else
       for (let yr = y0; yr <= y1; yr++){
         if (wantPortrait || yr > y0) doc.addPage('a4', 'landscape');
         else if (doc.getNumberOfPages() === 1) { /* first page already landscape */ }
@@ -1941,7 +1987,7 @@
       ${plan.warnings.length ? `<div style="margin-top:16px;"><strong style="font-size:14px;">Things to check</strong><ul style="margin:6px 0 0 18px; font-size:14px; color:var(--ink-soft);">${plan.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>` : ''}
       <div class="lv-export" style="margin-top:22px; padding-top:16px; border-top:1px solid var(--line);">
         <strong style="font-size:15px;">Export to PDF</strong>
-        <div class="sub" style="margin-top:2px;">Choose which leave to include. The PDF has a summary report (leave planned, taken and still to plan), plan details, and one calendar page for each year the leave covers.</div>
+        <div class="sub" style="margin-top:2px;">Choose which leave to include. The PDF has a summary report (leave planned, taken and still to plan), plan details, and calendars, either one page per year or one page per month.</div>
         <div style="display:flex; flex-wrap:wrap; gap:6px 22px; margin:10px 0 4px; font-size:14px;">
           <strong style="width:100%; font-size:13px; color:var(--ink-soft);">Leave types</strong>
           ${['mMat', 'fPat', 'mSpl', 'fSpl'].map(k => { const avail = k === 'mMat' || k === 'fPat' || (k === 'mSpl' ? plan.spl.m : plan.spl.f); return `<label style="${avail ? '' : 'opacity:.5;'}"><input type="checkbox" data-lv-exp="types.${k}" ${avail && leaveExport.types[k] ? 'checked' : ''} ${avail ? '' : 'disabled'}> ${LEAVE_TYPES[k].name}</label>`; }).join('')}
@@ -1950,7 +1996,10 @@
           <strong style="width:100%; font-size:13px; color:var(--ink-soft);">Include</strong>
           <label><input type="checkbox" data-lv-exp="report" ${leaveExport.report ? 'checked' : ''}> Summary report (days used and remaining)</label>
           <label><input type="checkbox" data-lv-exp="details" ${leaveExport.details ? 'checked' : ''}> Plan details and dates</label>
-          <label><input type="checkbox" data-lv-exp="calendar" ${leaveExport.calendar ? 'checked' : ''}> Year calendar(s)</label>
+          <label><input type="checkbox" data-lv-exp="calendar" ${leaveExport.calendar ? 'checked' : ''}> Calendar(s)</label>
+          <span style="margin-left:6px; color:var(--ink-soft);">Calendar layout:</span>
+          <label><input type="radio" name="lvLayout" data-lv-exp="layout" value="year" ${leaveExport.layout === 'year' ? 'checked' : ''}> Whole year per page</label>
+          <label><input type="radio" name="lvLayout" data-lv-exp="layout" value="month" ${leaveExport.layout === 'month' ? 'checked' : ''}> One month per page</label>
         </div>
         <button class="btn-plum" data-lv-export>Download PDF</button>
         <span id="lvExportMsg" style="margin-left:10px; font-size:13.5px; color:var(--ink-soft);"></span>
@@ -1967,7 +2016,8 @@
       if (e.target.dataset.lvMonthsel !== undefined){ leaveMonth = e.target.value; renderLeave(); return; }
       if (e.target.dataset.lvExp){
         const ks = e.target.dataset.lvExp.split('.');
-        if (ks.length === 2) leaveExport[ks[0]][ks[1]] = e.target.checked; else leaveExport[ks[0]] = e.target.checked;
+        if (ks[0] === 'layout') leaveExport.layout = e.target.value;
+        else if (ks.length === 2) leaveExport[ks[0]][ks[1]] = e.target.checked; else leaveExport[ks[0]] = e.target.checked;
         return;
       }
       const path = e.target.dataset.lv;
